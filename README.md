@@ -8,7 +8,7 @@ Outside-consumer Worldsmiths game (includeBuild of unpublished engine). **This r
 - No `com.badlogic.gdx` imports in game sources
 - Transitive LibGDX via `ws-core` is OK
 
-Enforce locally with `ci/assert-bar-c.sh` (CI will wire this in a later task).
+Enforce locally with `ci/assert-bar-c.sh`; CI runs the same gate on every push/PR.
 
 ## Requirements
 
@@ -22,7 +22,7 @@ Enforce locally with `ci/assert-bar-c.sh` (CI will wire this in a later task).
 | --- | --- |
 | Local default | Sibling `../worldsmiths` |
 | Override | `WORLDSMITHS_ENGINE_ROOT` or `-Dworldsmiths.engineRoot=...` |
-| CI | Dual-checkout at `engine/` + `game/`; pin SHA in `.github/workflows/ci.yml` (when present) |
+| CI | Dual-checkout at `engine/` + `game/`; pin SHA in `.github/workflows/ci.yml` (`WORLDSMITHS_ENGINE_REF`) |
 
 Uses bare `includeBuild` against the engine checkout (no `dependencySubstitution`).
 

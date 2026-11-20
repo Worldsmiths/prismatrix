@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pin to Worldsmiths main tip that supports create(EngineServices)
+  WORLDSMITHS_ENGINE_REF: 2b7e7a25a20151558f1015132b9f08dc7adba9d7
+  WORLDSMITHS_ENGINE_ROOT: ${{ github.workspace }}/engine
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Prismatrix
+        uses: actions/checkout@v7
+        with:
+          path: game
+
+      - name: Checkout Worldsmiths engine (pinned SHA)
+        uses: actions/checkout@v7
+        with:
+          repository: Worldsmiths/worldsmiths
+          ref: ${{ env.WORLDSMITHS_ENGINE_REF }}
+          path: engine
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Bar C gate (no direct gdx / no com.badlogic.gdx imports)
+        working-directory: game
+        run: bash ci/assert-bar-c.sh
+
+      - name: Compile desktop and run game tests
+        working-directory: game
+        run: |
+          chmod +x gradlew
+          ./gradlew :desktop:compileJava :game:test --no-daemon
