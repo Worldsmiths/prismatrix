@@ -121,6 +121,78 @@ class PvpPresentationTest {
     }
 
     @Test
+    void ownTurnPortTapPracticesGuessBoardWithoutFiring() {
+        FakeEngineServices services = new FakeEngineServices();
+        Port entry = Port.of(Port.Side.T, 0, 8);
+        MatchKernel kernel = playingKernelHumanFirst(classicBoard(), classicBoard());
+        final int[] decideCount = {0};
+        AiPolicy counting =
+                new AiPolicy() {
+                    @Override
+                    public BoardState proposeSetup(MatchRules rules, Random random) {
+                        return classicBoard();
+                    }
+
+                    @Override
+                    public AiAction decide(MatchView view, Random random) {
+                        decideCount[0]++;
+                        return AiAction.fire(Port.of(Port.Side.B, 0, 8));
+                    }
+                };
+        PvpPresentation presentation =
+                new PvpPresentation(
+                        kernel, SeatId.A, SeatId.B, counting, services.thin3d(), new Random(1));
+        presentation.update(services.input(), 800, 600);
+        assertTrue(presentation.uiPhase() == PvpPresentation.UiPhase.OWN_TURN);
+
+        presentation.practicePort(entry);
+        assertTrue(entry.equals(presentation.selectedPort()));
+        assertTrue(kernel.activeSeat() == SeatId.A);
+        assertTrue(decideCount[0] == 0);
+        assertTrue(kernel.viewFor(SeatId.A).fireLog().isEmpty());
+    }
+
+    @Test
+    void fireResultLightsEntryAndExitPortsWithoutOpponentPath() {
+        FakeEngineServices services = new FakeEngineServices();
+        FakeThin3D thin3d = services.thin3d();
+        Port entry = Port.of(Port.Side.T, 0, 8);
+        MatchKernel kernel = playingKernelHumanFirst(classicBoard(), classicBoard());
+        AiPolicy idle =
+                new AiPolicy() {
+                    @Override
+                    public BoardState proposeSetup(MatchRules rules, Random random) {
+                        return classicBoard();
+                    }
+
+                    @Override
+                    public AiAction decide(MatchView view, Random random) {
+                        return AiAction.fire(Port.of(Port.Side.B, 0, 8));
+                    }
+                };
+        PvpPresentation presentation =
+                new PvpPresentation(kernel, SeatId.A, SeatId.B, idle, thin3d, new Random(1));
+        presentation.update(services.input(), 800, 600);
+        assertTrue(presentation.fireAsHuman(entry).accepted());
+        thin3d.clear();
+        presentation.render(services.draw2d(), null, 800, 600);
+        assertTrue(presentation.uiPhase() == PvpPresentation.UiPhase.FIRE_RESULT);
+        FireObservation hud = presentation.lastFirerHud();
+        assertNotNull(hud);
+        assertNull(hud.visitedCells());
+        TraceResult opponentPath = TraceCore.trace(kernel.seat(SeatId.B).secret(), entry);
+        if (!opponentPath.visitedCells().isEmpty()) {
+            Cell mid = opponentPath.visitedCells().get(opponentPath.visitedCells().size() / 2);
+            assertNull(
+                    findTrsNear(
+                            thin3d.commands(),
+                            BoardPlane.cellCenterX(mid.x()),
+                            BoardPlane.cellCenterZ(mid.y())),
+                    "Fire result must not draw opponent path cells");
+        }
+    }
+
+    @Test
     void incomingFireTapDismissesBeamSoGameIsNotStuck() {
         FakeEngineServices services = new FakeEngineServices();
         Port entry = Port.of(Port.Side.T, 0, 8);

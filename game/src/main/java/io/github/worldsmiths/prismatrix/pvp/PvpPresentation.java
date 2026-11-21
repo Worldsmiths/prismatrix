@@ -9,15 +9,21 @@ import io.github.worldsmiths.prismatrix.optics.BoardState;
 import io.github.worldsmiths.prismatrix.optics.Cell;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
+import io.github.worldsmiths.prismatrix.optics.TraceCore;
+import io.github.worldsmiths.prismatrix.optics.TraceResult;
 import io.github.worldsmiths.prismatrix.puzzle.BoardView;
 import io.github.worldsmiths.prismatrix.puzzle.PlaceResult;
 import io.github.worldsmiths.prismatrix.puzzle.PlacementBoard;
+import io.github.worldsmiths.prismatrix.sandbox.ObservedShot;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
 /**
  * Pitched PvP vs AI facade: one {@link BoardView} phase-switched between deduction (own turn) and
  * own secret + owner beam (IncomingFire). Firer HUD is exit+color only — never feeds opponent
- * {@code visitedCells} into BoardView. AI seat locks human input.
+ * {@code visitedCells} into BoardView on real Fire. Own-turn port taps practice-Trace the guess
+ * board only. AI seat locks human place/Fire/Guess.
  */
 public final class PvpPresentation {
 
@@ -43,6 +49,8 @@ public final class PvpPresentation {
 
     private UiPhase uiPhase = UiPhase.SETUP;
     private PieceType selected;
+    private Port selectedPort;
+    private TraceResult practiceTrace;
     private FireObservation lastFirerHud;
     private FireObservation pendingOwnerBeam;
     private boolean aiActedThisTurn;
@@ -112,6 +120,19 @@ public final class PvpPresentation {
         return secretBoard;
     }
 
+    public Port selectedPort() {
+        return selectedPort;
+    }
+
+    /** Practice Trace on the guess board only (not opponent secret; not a match Fire). */
+    public void practicePort(Port port) {
+        if (uiPhase != UiPhase.OWN_TURN || port == null) {
+            return;
+        }
+        selectedPort = port;
+        practiceTrace = TraceCore.trace(deductionBoard.toBoardState(), port);
+    }
+
     /** Human Fire verb — HUD only; never pushes opponent path into BoardView. */
     public MatchActionResult fireAsHuman(Port port) {
         if (kernel.phase() != MatchPhase.PLAYING || kernel.activeSeat() != humanSeat) {
@@ -120,10 +141,15 @@ public final class PvpPresentation {
         if (holdFireResult || uiPhase == UiPhase.FIRE_RESULT || uiPhase == UiPhase.INCOMING_FIRE) {
             return MatchActionResult.refused("RESULT_PENDING");
         }
+        if (uiPhase != UiPhase.OWN_TURN) {
+            return MatchActionResult.refused("OUT_OF_TURN");
+        }
         MatchActionResult result = kernel.fire(humanSeat, port);
         if (result.accepted()) {
             lastFirerHud = kernel.lastFirerFire();
             boardView.clearBeam();
+            practiceTrace = null;
+            selectedPort = port;
             pendingOwnerBeam = null;
             aiActedThisTurn = false;
             holdFireResult = true;
@@ -169,7 +195,18 @@ public final class PvpPresentation {
                     pendingOwnerBeam.visitedCells(),
                     pendingOwnerBeam.exitPort());
             highlight = pendingOwnerBeam.entryPort();
-        } else if (uiPhase != UiPhase.INCOMING_FIRE) {
+        } else if (uiPhase == UiPhase.FIRE_RESULT && lastFirerHud != null) {
+            // Entry+exit pads only — empty path so opponent visitedCells never reach BoardView.
+            boardView.setBeamPath(
+                    lastFirerHud.entryPort(),
+                    Collections.<Cell>emptyList(),
+                    lastFirerHud.exitPort());
+            highlight = lastFirerHud.entryPort();
+        } else if (uiPhase == UiPhase.OWN_TURN && practiceTrace != null && selectedPort != null) {
+            boardView.setBeamPath(
+                    selectedPort, practiceTrace.visitedCells(), practiceTrace.exitPort());
+            highlight = selectedPort;
+        } else {
             boardView.clearBeam();
         }
         boardView.renderBoard(bound, highlight);
@@ -181,9 +218,15 @@ public final class PvpPresentation {
                 uiPhase == UiPhase.SETUP
                         && secretBoard.isCompleteClassic()
                         && !kernel.seat(humanSeat).ready();
-        // Firer HUD: exit+color only (never path). Sticky through FIRE_RESULT.
+        boolean canFire = uiPhase == UiPhase.OWN_TURN && selectedPort != null;
+        boolean canGuess =
+                uiPhase == UiPhase.OWN_TURN && deductionBoard.isCompleteClassic();
         FireObservation hud =
                 (lastFirerHud != null && lastFirerHud.visitedCells() == null) ? lastFirerHud : null;
+        List<ObservedShot> log =
+                kernel.phase() == MatchPhase.SETUP
+                        ? Collections.<ObservedShot>emptyList()
+                        : kernel.viewFor(humanSeat).fireLog();
         PvpChrome.render(
                 draw2d,
                 font,
@@ -193,8 +236,12 @@ public final class PvpPresentation {
                 selected,
                 tray,
                 hud,
+                log,
+                selectedPort,
                 inputLocked(),
-                canReady);
+                canReady,
+                canFire,
+                canGuess);
     }
 
     public void dispose() {
@@ -373,6 +420,14 @@ public final class PvpPresentation {
             case TRAY_BACK:
                 selected = PieceType.BACK;
                 return;
+            case FIRE:
+                if (selectedPort != null) {
+                    fireAsHuman(selectedPort);
+                }
+                return;
+            case GUESS:
+                tryGuess();
+                return;
             case READY:
             case NONE:
             default:
@@ -380,11 +435,15 @@ public final class PvpPresentation {
         }
         BoardView.Pick hit = boardView.pick(inputX, inputY);
         if (hit.port() != null) {
-            fireAsHuman(hit.port());
+            practicePort(hit.port());
             return;
         }
         if (hit.cell() != null) {
             placeOrRemove(deductionBoard, hit.cell());
+            // Placement changed — refresh practice beam if a port is selected.
+            if (selectedPort != null) {
+                practicePort(selectedPort);
+            }
         }
     }
 
