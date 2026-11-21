@@ -6,9 +6,23 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import io.github.worldsmiths.core.thin3d.Ray;
 import io.github.worldsmiths.core.thin3d.Vec3;
 import io.github.worldsmiths.prismatrix.optics.Cell;
+import io.github.worldsmiths.prismatrix.optics.Port;
 import org.junit.jupiter.api.Test;
 
 class BoardPlaneTest {
+
+    @Test
+    void mapsRayJustOutsideTopEntryCellToTPort() {
+        float margin = BoardPlane.portStripMargin(6);
+        Ray ray = downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f);
+        assertEquals(Port.of(Port.Side.T, 2, 6), BoardPlane.portAt(ray, 6));
+    }
+
+    @Test
+    void returnsNullWhenRayMissesPortStripsFarAway() {
+        Ray ray = downwardOnto(-10f, -10f);
+        assertNull(BoardPlane.portAt(ray, 6));
+    }
 
     @Test
     void mapsRayHittingTopLeftCellCenterToOpticsYZero() {

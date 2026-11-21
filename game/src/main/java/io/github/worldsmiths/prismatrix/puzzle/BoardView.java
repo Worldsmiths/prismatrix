@@ -18,19 +18,14 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Thin3D pitched board: 38° X / 0° Y orthographic camera, pick-ray → {@link BoardPlane}, screen-space
- * port strips, tint/height-distinct ghosts, emissive cell-center beams from Test Fire visits.
+ * Thin3D pitched board: 38° X / 0° Y orthographic camera, pick-ray → {@link BoardPlane} (cell or
+ * near-edge port), tint/height-distinct ghosts, emissive cell-center beams from Test Fire visits.
  */
 public final class BoardView {
 
     static final float PITCH_DEG = 38f;
     static final float YAW_DEG = 0f;
     static final float CAMERA_DISTANCE = 14f;
-    static final float PORT_STRIP = 28f;
-    /** Screen-space board footprint used to place expanded port strips (Input top-left origin). */
-    static final float BOARD_SCREEN_LEFT = 72f;
-    static final float BOARD_SCREEN_TOP = 48f;
-    static final float BOARD_SCREEN_SIZE = 300f;
 
     private static final float DRAFT_H = 0.18f;
     private static final float GHOST_H = 0.42f;
@@ -85,74 +80,33 @@ public final class BoardView {
         }
     }
 
-    public Cell pickCell(float screenX, float screenY) {
+    /**
+     * One pick-ray resolve against the pitched board plane: near-edge {@link Port} first, else
+     * optics {@link Cell}. FakeThin3D tests should {@code seedPickRay} a downward ray onto the
+     * intended world hit (cell center or just outside a border within {@link
+     * BoardPlane#portStripMargin}); screen coords are ignored by the fake seed.
+     */
+    public Pick pick(float screenX, float screenY) {
         requireCamera();
         camera.update();
         Ray ray = camera.getPickRay(screenX, screenY);
-        return BoardPlane.cellAt(ray, gridSize);
+        Port port = BoardPlane.portAt(ray, gridSize);
+        if (port != null) {
+            return Pick.port(port);
+        }
+        return Pick.cell(BoardPlane.cellAt(ray, gridSize));
+    }
+
+    public Cell pickCell(float screenX, float screenY) {
+        return pick(screenX, screenY).cell();
     }
 
     /**
-     * Hit-test expanded screen-space port strips around the board footprint. Returns the port or
+     * Hit-test expanded world-space port strips via pick-ray → board plane. Returns the port or
      * {@code null}.
      */
     public Port hitTestPortStrip(int inputX, int inputY) {
-        float left = BOARD_SCREEN_LEFT;
-        float top = BOARD_SCREEN_TOP;
-        float size = BOARD_SCREEN_SIZE;
-        float right = left + size;
-        float bottom = top + size;
-        float cell = size / gridSize;
-
-        if (inputY >= top - PORT_STRIP && inputY < top && inputX >= left && inputX < right) {
-            int index = clampIndex((int) ((inputX - left) / cell));
-            return Port.of(Port.Side.T, index, gridSize);
-        }
-        if (inputY >= bottom && inputY < bottom + PORT_STRIP && inputX >= left && inputX < right) {
-            int index = clampIndex((int) ((inputX - left) / cell));
-            return Port.of(Port.Side.B, index, gridSize);
-        }
-        if (inputX >= left - PORT_STRIP && inputX < left && inputY >= top && inputY < bottom) {
-            int index = clampIndex((int) ((inputY - top) / cell));
-            return Port.of(Port.Side.L, index, gridSize);
-        }
-        if (inputX >= right && inputX < right + PORT_STRIP && inputY >= top && inputY < bottom) {
-            int index = clampIndex((int) ((inputY - top) / cell));
-            return Port.of(Port.Side.R, index, gridSize);
-        }
-        return null;
-    }
-
-    public static int portStripCenterX(Port.Side side, int index, int gridSize) {
-        float cell = BOARD_SCREEN_SIZE / gridSize;
-        float midX = BOARD_SCREEN_LEFT + index * cell + cell * 0.5f;
-        switch (side) {
-            case T:
-            case B:
-                return (int) midX;
-            case L:
-                return (int) (BOARD_SCREEN_LEFT - PORT_STRIP * 0.5f);
-            case R:
-                return (int) (BOARD_SCREEN_LEFT + BOARD_SCREEN_SIZE + PORT_STRIP * 0.5f);
-            default:
-                throw new IllegalStateException("unknown side " + side);
-        }
-    }
-
-    public static int portStripCenterY(Port.Side side, int index, int gridSize) {
-        float cell = BOARD_SCREEN_SIZE / gridSize;
-        float midY = BOARD_SCREEN_TOP + index * cell + cell * 0.5f;
-        switch (side) {
-            case T:
-                return (int) (BOARD_SCREEN_TOP - PORT_STRIP * 0.5f);
-            case B:
-                return (int) (BOARD_SCREEN_TOP + BOARD_SCREEN_SIZE + PORT_STRIP * 0.5f);
-            case L:
-            case R:
-                return (int) midY;
-            default:
-                throw new IllegalStateException("unknown side " + side);
-        }
+        return pick(inputX, inputY).port();
     }
 
     public void setBeamCells(List<Cell> cells) {
@@ -289,16 +243,6 @@ public final class BoardView {
         }
     }
 
-    private int clampIndex(int index) {
-        if (index < 0) {
-            return 0;
-        }
-        if (index >= gridSize) {
-            return gridSize - 1;
-        }
-        return index;
-    }
-
     private static void disposeModel(Model model) {
         if (model != null) {
             model.dispose();
@@ -308,5 +252,32 @@ public final class BoardView {
     /** Package-visible for resize assertions. */
     Camera camera() {
         return camera;
+    }
+
+    /** Result of a single pick-ray against the board plane. */
+    public static final class Pick {
+        private final Port port;
+        private final Cell cell;
+
+        private Pick(Port port, Cell cell) {
+            this.port = port;
+            this.cell = cell;
+        }
+
+        static Pick port(Port port) {
+            return new Pick(port, null);
+        }
+
+        static Pick cell(Cell cell) {
+            return new Pick(null, cell);
+        }
+
+        public Port port() {
+            return port;
+        }
+
+        public Cell cell() {
+            return cell;
+        }
     }
 }
