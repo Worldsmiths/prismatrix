@@ -9,6 +9,7 @@ import io.github.worldsmiths.core.thin3d.ModelInstance;
 import io.github.worldsmiths.core.thin3d.OrthographicCamera;
 import io.github.worldsmiths.core.thin3d.Ray;
 import io.github.worldsmiths.core.thin3d.Thin3D;
+import io.github.worldsmiths.prismatrix.optics.BoardState;
 import io.github.worldsmiths.prismatrix.optics.Cell;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
@@ -35,6 +36,8 @@ public final class BoardView {
 
     private static final float DRAFT_H = 0.22f;
     private static final float GHOST_H = 0.48f;
+    private static final float ORB_H = 0.36f;
+    private static final float ORB_SIZE = 0.55f;
     private static final float MIRROR_LEN = 0.92f;
     /** Thick enough that the beam does not read through the blade face. */
     private static final float MIRROR_THICK = 0.22f;
@@ -60,6 +63,9 @@ public final class BoardView {
     private Model boardModel;
     private Model draftModel;
     private Model ghostModel;
+    private Model orbRModel;
+    private Model orbGModel;
+    private Model orbBModel;
     private Model beamModel;
     private Model gridLineXModel;
     private Model gridLineZModel;
@@ -167,6 +173,21 @@ public final class BoardView {
         requireCamera();
         syncPortPads(puzzle, badges, activeTestFirePort);
         syncInstances(puzzle, ghosts);
+        drawFrame();
+    }
+
+    /**
+     * Mode-agnostic board bind for PvP phase-switch: pieces from {@link BoardState} (mirrors +
+     * orbs), optional active port highlight, plus any beam set via {@link #setBeamPath}.
+     */
+    public void renderBoard(BoardState board, Port activePort) {
+        requireCamera();
+        syncPortPads(null, Collections.<ConsistencyBadge>emptyList(), activePort);
+        syncBoardPieces(board);
+        drawFrame();
+    }
+
+    private void drawFrame() {
         poseCamera();
         camera.update();
         batch.begin(camera);
@@ -197,6 +218,9 @@ public final class BoardView {
         disposeModel(boardModel);
         disposeModel(draftModel);
         disposeModel(ghostModel);
+        disposeModel(orbRModel);
+        disposeModel(orbGModel);
+        disposeModel(orbBModel);
         disposeModel(beamModel);
         disposeModel(gridLineXModel);
         disposeModel(gridLineZModel);
@@ -208,6 +232,9 @@ public final class BoardView {
         boardModel = null;
         draftModel = null;
         ghostModel = null;
+        orbRModel = null;
+        orbGModel = null;
+        orbBModel = null;
         beamModel = null;
         gridLineXModel = null;
         gridLineZModel = null;
@@ -234,6 +261,9 @@ public final class BoardView {
         ghostModel =
                 builder.createBox(
                         MIRROR_LEN, GHOST_H, MIRROR_THICK, 0.35f, 0.78f, 0.98f, 1f);
+        orbRModel = builder.createSphere(ORB_SIZE, ORB_SIZE, ORB_SIZE, 12, 12, 0.9f, 0.2f, 0.2f, 1f);
+        orbGModel = builder.createSphere(ORB_SIZE, ORB_SIZE, ORB_SIZE, 12, 12, 0.2f, 0.85f, 0.3f, 1f);
+        orbBModel = builder.createSphere(ORB_SIZE, ORB_SIZE, ORB_SIZE, 12, 12, 0.25f, 0.45f, 0.95f, 1f);
         beamModel =
                 builder.createBoxEmissive(
                         BEAM_THICK,
@@ -447,6 +477,37 @@ public final class BoardView {
         placeBeams();
     }
 
+    /** Bind pieces from a BoardState (mirrors as blades, orbs as spheres). No ghosts. */
+    private void syncBoardPieces(BoardState board) {
+        draftInstances.clear();
+        ghostInstances.clear();
+        beamInstances.clear();
+        if (board != null) {
+            for (int y = 0; y < gridSize; y++) {
+                for (int x = 0; x < gridSize; x++) {
+                    PieceType piece = board.pieceAt(x, y);
+                    if (piece == null) {
+                        continue;
+                    }
+                    if (piece == PieceType.FORWARD || piece == PieceType.BACK) {
+                        draftInstances.add(
+                                placeMirror(
+                                        draftModel,
+                                        x,
+                                        y,
+                                        DRAFT_H * 0.5f,
+                                        yawFor(piece)));
+                    } else if (piece == PieceType.ORB_R
+                            || piece == PieceType.ORB_G
+                            || piece == PieceType.ORB_B) {
+                        draftInstances.add(placeOrb(piece, x, y));
+                    }
+                }
+            }
+        }
+        placeBeams();
+    }
+
     private ModelInstance placeMirror(
             Model model, int opticsX, int opticsY, float y, float eulerY) {
         ModelInstance inst = thin3d.createInstance(model);
@@ -461,6 +522,32 @@ public final class BoardView {
                 1f,
                 1f);
         return inst;
+    }
+
+    private ModelInstance placeOrb(PieceType type, int opticsX, int opticsY) {
+        Model model = orbModelFor(type);
+        ModelInstance inst = thin3d.createInstance(model);
+        inst.setTranslationRotationScaling(
+                BoardPlane.cellCenterX(opticsX),
+                ORB_H * 0.5f + 0.04f,
+                BoardPlane.cellCenterZ(opticsY),
+                0f,
+                0f,
+                0f,
+                1f,
+                1f,
+                1f);
+        return inst;
+    }
+
+    private Model orbModelFor(PieceType type) {
+        if (type == PieceType.ORB_R) {
+            return orbRModel;
+        }
+        if (type == PieceType.ORB_G) {
+            return orbGModel;
+        }
+        return orbBModel;
     }
 
     private static float yawFor(PieceType type) {
