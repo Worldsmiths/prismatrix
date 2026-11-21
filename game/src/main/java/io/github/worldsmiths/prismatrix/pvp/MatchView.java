@@ -12,6 +12,7 @@ public final class MatchView {
     private final SeatId viewer;
     private final MatchPhase phase;
     private final SeatId activeSeat;
+    private final int gridSize;
     private final List<ObservedShot> fireLog;
     private final FireObservation lastFirerFire;
     private final FireObservation lastOwnerFire;
@@ -21,6 +22,7 @@ public final class MatchView {
             SeatId viewer,
             MatchPhase phase,
             SeatId activeSeat,
+            int gridSize,
             List<ObservedShot> fireLog,
             FireObservation lastFirerFire,
             FireObservation lastOwnerFire,
@@ -28,6 +30,7 @@ public final class MatchView {
         this.viewer = viewer;
         this.phase = phase;
         this.activeSeat = activeSeat;
+        this.gridSize = gridSize;
         this.fireLog = fireLog;
         this.lastFirerFire = lastFirerFire;
         this.lastOwnerFire = lastOwnerFire;
@@ -44,6 +47,11 @@ public final class MatchView {
 
     public SeatId activeSeat() {
         return activeSeat;
+    }
+
+    /** Board size from match rules (not a secret). */
+    public int gridSize() {
+        return gridSize;
     }
 
     /** Viewer's own firer shot log. */

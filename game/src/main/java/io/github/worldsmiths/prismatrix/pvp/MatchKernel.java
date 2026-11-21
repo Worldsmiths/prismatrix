@@ -93,6 +93,7 @@ public final class MatchKernel {
                 viewer,
                 phase,
                 activeSeat,
+                rules.gridSize(),
                 seat.fireLog(),
                 lastFirerFire,
                 lastOwnerFire,
