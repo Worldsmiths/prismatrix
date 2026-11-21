@@ -189,20 +189,24 @@ public final class PvpPresentation {
         boardView.ensureSized(screenWidth, screenHeight);
         BoardState bound = boundBoard();
         Port highlight = null;
+        boardView.clearFireResultPorts();
         if (uiPhase == UiPhase.INCOMING_FIRE && pendingOwnerBeam != null) {
+            boardView.clearBeam();
             boardView.setBeamPath(
                     pendingOwnerBeam.entryPort(),
                     pendingOwnerBeam.visitedCells(),
                     pendingOwnerBeam.exitPort());
             highlight = pendingOwnerBeam.entryPort();
         } else if (uiPhase == UiPhase.FIRE_RESULT && lastFirerHud != null) {
-            // Entry+exit pads only — empty path so opponent visitedCells never reach BoardView.
-            boardView.setBeamPath(
+            // Firer result: ports only (entry white, exit result color) — no opponent path.
+            boardView.clearBeam();
+            boardView.setFireResultPorts(
                     lastFirerHud.entryPort(),
-                    Collections.<Cell>emptyList(),
-                    lastFirerHud.exitPort());
+                    lastFirerHud.exitPort(),
+                    lastFirerHud.colorMask());
             highlight = lastFirerHud.entryPort();
         } else if (uiPhase == UiPhase.OWN_TURN && practiceTrace != null && selectedPort != null) {
+            boardView.clearBeam();
             boardView.setBeamPath(
                     selectedPort, practiceTrace.visitedCells(), practiceTrace.exitPort());
             highlight = selectedPort;
@@ -298,7 +302,8 @@ public final class PvpPresentation {
     private void dismissResultOverlay() {
         if (uiPhase == UiPhase.FIRE_RESULT) {
             holdFireResult = false;
-            // Keep lastFirerHud until AI Fire / next human Fire overwrites it.
+            boardView.clearFireResultPorts();
+            // Keep lastFirerHud text until AI Fire overwrites; ports clear on dismiss.
             syncPhaseFromKernel();
             if (uiPhase == UiPhase.AI_TURN) {
                 runAiTurn();

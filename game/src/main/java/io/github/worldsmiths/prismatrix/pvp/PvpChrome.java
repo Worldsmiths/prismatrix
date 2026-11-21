@@ -3,6 +3,7 @@ package io.github.worldsmiths.prismatrix.pvp;
 import io.github.worldsmiths.core.Draw2D;
 import io.github.worldsmiths.core.DrawMode;
 import io.github.worldsmiths.core.Font;
+import io.github.worldsmiths.prismatrix.optics.BeamColor;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
 import io.github.worldsmiths.prismatrix.puzzle.PlacementBoard;
@@ -364,17 +365,23 @@ public final class PvpChrome {
         if (firerHud != null) {
             Port exit = firerHud.exitPort();
             String exitLabel = exit == null ? "ABSORB" : exit.toString();
+            String colorName = BeamColor.label(firerHud.colorMask());
             drawText(
                     font,
-                    "Fire: "
-                            + firerHud.entryPort()
-                            + " -> "
-                            + exitLabel
-                            + "  color="
-                            + firerHud.colorMask(),
+                    "Fire: " + firerHud.entryPort() + " -> " + exitLabel + "  " + colorName,
                     layout.hudLeft,
                     line);
+            drawColorSwatch(
+                    draw2d,
+                    layout.hudLeft - 22f * UI_SCALE,
+                    line - 4f,
+                    16f * UI_SCALE,
+                    firerHud.colorMask());
             line -= LINE_STEP;
+            if (phase == PvpPresentation.UiPhase.FIRE_RESULT) {
+                drawText(font, "Ports: entry white, exit " + colorName, layout.hudLeft, line);
+                line -= LINE_STEP;
+            }
         }
         List<ObservedShot> log = fireLog == null ? Collections.<ObservedShot>emptyList() : fireLog;
         if (!log.isEmpty()) {
@@ -385,6 +392,7 @@ public final class PvpChrome {
                 ObservedShot shot = log.get(i);
                 Port exit = shot.exitPort();
                 String exitLabel = exit == null ? "ABSORB" : exit.toString();
+                String colorName = BeamColor.label(shot.colorMask());
                 drawText(
                         font,
                         (i + 1)
@@ -392,13 +400,34 @@ public final class PvpChrome {
                                 + shot.entryPort()
                                 + "->"
                                 + exitLabel
-                                + " c="
-                                + shot.colorMask(),
+                                + " "
+                                + colorName,
                         layout.hudLeft,
                         line);
+                drawColorSwatch(
+                        draw2d,
+                        layout.hudLeft - 22f * UI_SCALE,
+                        line - 4f,
+                        14f * UI_SCALE,
+                        shot.colorMask());
                 line -= LINE_STEP * 0.9f;
             }
         }
+    }
+
+    private static void drawColorSwatch(Draw2D g, float left, float bottom, float size, int mask) {
+        if (g == null) {
+            return;
+        }
+        float[] c = BeamColor.rgba(mask);
+        g.begin(DrawMode.FILLED);
+        g.setColor(c[0], c[1], c[2], 1f);
+        g.rect(left, bottom, size, size);
+        g.end();
+        g.begin(DrawMode.LINE);
+        g.setColor(0.9f, 0.9f, 0.95f, 1f);
+        g.rect(left, bottom, size, size);
+        g.end();
     }
 
     /** Larger/heavier look without a Font scale API: double-draw + larger line step. */
