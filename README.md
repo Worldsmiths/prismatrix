@@ -59,3 +59,29 @@ HLD soft NFR: Trace p95 &lt; 0.5 ms headless on 8×8 (mirrors/orbs; no Splitter)
 ```
 
 Tagged `@Tag("bench")` in `TraceLatencyBenchTest` for optional tag filtering; default `:game:test` stays non-flaky.
+
+## Soft sandbox re-eval bench (optional)
+
+HLD soft NFR: sandbox consistency re-eval p95 &lt; 0.2 ms for K≈20 observations (6×6 ghosts). Showcase target only — prints p50/p95/max and fails only on an extreme multi-second wall timeout (peer of Trace latency bench).
+
+```bash
+./gradlew :game:test --tests io.github.worldsmiths.prismatrix.sandbox.SandboxReEvalBenchTest
+```
+
+Tagged `@Tag("bench")` in `SandboxReEvalBenchTest`; default `:game:test` still runs it.
+
+## Founder headed smoke checklist (manual — not CI)
+
+Run once after pitched UI lands. **Not** a CI gate; sign off outside automation.
+
+```bash
+export WORLDSMITHS_ENGINE_ROOT=/path/to/worldsmiths   # if not ../worldsmiths
+./gradlew :desktop:run
+```
+
+1. Confirm the board renders under pitch (38° ortho), not flat AABB.
+2. In Ghost mode, pick **one** empty cell and place a ghost mirror.
+3. Tap a port strip for **one** Test Fire — emissive beam along the ghost Trace path.
+4. (Optional) Promote / Verify chrome still responds; refuse messages if over budget.
+
+Done when steps 2–3 succeed under pitch.
