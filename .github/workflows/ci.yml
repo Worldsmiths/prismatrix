@@ -12,8 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Pin to Worldsmiths main tip that supports create(EngineServices)
-  WORLDSMITHS_ENGINE_REF: 2b7e7a25a20151558f1015132b9f08dc7adba9d7
+  # Pin to Worldsmiths Thin3D P1 (ortho + pick-ray + emissive + TRS)
+  WORLDSMITHS_ENGINE_REF: b3b56879dbe11ac960129e2589d21f02aea37bfb
   WORLDSMITHS_ENGINE_ROOT: ${{ github.workspace }}/engine
 
 jobs:
@@ -42,14 +42,6 @@ jobs:
       - name: Bar C gate (no direct gdx / no com.badlogic.gdx imports)
         working-directory: game
         run: bash ci/assert-bar-c.sh
-
-      - name: Thin3D P1 name fence (temporary; remove with first call PR)
-        working-directory: game
-        run: bash ci/assert-thin3d-p1-names.sh
-
-      - name: Thin3D P1 name fence selftest (planted name must fail, then clean)
-        working-directory: game
-        run: bash ci/assert-thin3d-p1-names-selftest.sh
 
       - name: Compile desktop and run game tests
         working-directory: game

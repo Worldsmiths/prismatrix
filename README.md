@@ -11,11 +11,9 @@ export WORLDSMITHS_ENGINE_ROOT=/path/to/worldsmiths   # if not ../worldsmiths
 
 Loads `levels/w1/01.json`. Tap the tray `/` or `\` then an empty cell to place; tap a filled cell to return a mirror; press **Enter** or **V** when remaining budget is 0 to Verify.
 
-## Thin3D P1 (M3 — not required for M2)
+## Thin3D P1 (M3)
 
-Pitched / Ghost UX needs Thin3D **P1** (ortho + pick-ray + emissive + TRS) in the engine. That work is named for **M3** and is **not** required for this M2 first playable. M2 uses flat Draw2D + Font + Input only; no Thin3D ortho/pick/emissive/TRS calls in M2 sources.
-
-**Temporary name fence:** `ci/assert-thin3d-p1-names.sh` fails if `game/src` Java mentions P1 API names (`OrthographicCamera`, `getPickRay`, `create*Emissive`, `setTranslationRotationScaling`, `createOrthographicCamera`). **Removable** with the first intentional Thin3D P1 call PR (together with a `WORLDSMITHS_ENGINE_REF` pin bump). CI runs the fence then `ci/assert-thin3d-p1-names-selftest.sh` (planted-name proof) next to Bar C.
+Pitched / Ghost UX consumes Thin3D **P1** (ortho + pick-ray + emissive + TRS). CI pins a Worldsmiths SHA that includes P1 (`WORLDSMITHS_ENGINE_REF` in `.github/workflows/ci.yml`). The temporary P1 name fence used before that pin is gone; game sources may call those APIs.
 
 ## Bar C
 
@@ -27,7 +25,7 @@ Enforce locally with `ci/assert-bar-c.sh`; CI runs the same gate on every push/P
 
 ## CI shape
 
-CI stays **Bar C** + Thin3D P1 name fence + `:desktop:compileJava` + `:game:test`. There is **no** headed `:desktop:run` in CI.
+CI stays **Bar C** + `:desktop:compileJava` + `:game:test`. There is **no** headed `:desktop:run` in CI.
 
 ## Requirements
 
