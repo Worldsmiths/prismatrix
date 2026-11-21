@@ -53,6 +53,11 @@ public final class PuzzleMode {
         return draft.gridSize();
     }
 
+    /** Piece at cell, or {@code null} if empty / out of bounds. */
+    public PieceType pieceAt(int x, int y) {
+        return draft.pieceAt(x, y);
+    }
+
     public PlaceResult place(int x, int y, PieceType type) {
         return draft.place(x, y, type);
     }
