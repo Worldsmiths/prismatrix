@@ -1,0 +1,10 @@
+{
+  "id": "w1-05",
+  "gridSize": 6,
+  "mirrorBudget": 3,
+  "clues": [
+    {"entryPort": "B3", "exitPort": "R3", "colorMask": 0},
+    {"entryPort": "L5", "exitPort": "B1", "colorMask": 0},
+    {"entryPort": "R1", "exitPort": "B5", "colorMask": 0}
+  ]
+}
