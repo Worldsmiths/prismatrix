@@ -1,5 +1,6 @@
 package io.github.worldsmiths.prismatrix.sandbox;
 
+import io.github.worldsmiths.prismatrix.optics.BoardState;
 import io.github.worldsmiths.prismatrix.optics.Cell;
 import io.github.worldsmiths.prismatrix.optics.Port;
 import io.github.worldsmiths.prismatrix.optics.TraceCore;
@@ -10,8 +11,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Ghost-only consistency: Neutral if path ∩ ghost cells is empty; else Green if exit+color match
- * the observation, Red otherwise. Also exposes ghost-only Test Fire Trace.
+ * Ghost-only consistency badges: Neutral if path ∩ ghost cells is empty; else Green if exit+color
+ * match the observation, Red otherwise. Test Fire traces any {@link BoardState} (Ghost or Draft).
  */
 public final class ConsistencyEngine {
 
@@ -34,18 +35,26 @@ public final class ConsistencyEngine {
         return badges;
     }
 
-    /**
-     * Ghost-only Test Fire: Trace on the ghost board from {@code port}, returning the full
-     * {@link TraceResult} (including visited cells) for beams.
-     */
+    /** Test Fire on the ghost board. */
     public static TraceResult testFire(GhostBoard ghosts, Port port) {
         if (ghosts == null) {
             throw new IllegalArgumentException("ghosts must not be null");
         }
+        return testFire(ghosts.toBoardState(), port);
+    }
+
+    /**
+     * Test Fire Trace on an arbitrary board (Ghost or Draft snapshot) from {@code port}, returning
+     * visited cells for beams.
+     */
+    public static TraceResult testFire(BoardState board, Port port) {
+        if (board == null) {
+            throw new IllegalArgumentException("board must not be null");
+        }
         if (port == null) {
             throw new IllegalArgumentException("port must not be null");
         }
-        return TraceCore.trace(ghosts.toBoardState(), port);
+        return TraceCore.trace(board, port);
     }
 
     private static ConsistencyBadge.Kind badgeFor(

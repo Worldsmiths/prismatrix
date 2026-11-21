@@ -2,6 +2,7 @@ package io.github.worldsmiths.prismatrix.puzzle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -130,9 +131,88 @@ class PresentationTest {
         List<FakeThin3D.Command> commands = thin3d.commands();
         assertTrue(containsKind(commands, FakeThin3D.Command.Kind.CREATE_INSTANCE));
         assertTrue(containsKind(commands, FakeThin3D.Command.Kind.INSTANCE_TRS));
-        FakeThin3D.Command trs = firstKind(commands, FakeThin3D.Command.Kind.INSTANCE_TRS);
-        assertEquals(BoardPlane.cellCenterX(2), trs.x, 1e-4f);
-        assertEquals(BoardPlane.cellCenterZ(0), trs.z, 1e-4f);
+        // Empty T2: first beam segment is rim z=0 → cell (2,0) center (half-cell), not cell-center start.
+        float entryMidZ = (0f + BoardPlane.cellCenterZ(0)) * 0.5f;
+        FakeThin3D.Command entrySeg =
+                findTrsNear(commands, BoardPlane.cellCenterX(2), entryMidZ);
+        assertNotNull(entrySeg, "expected rim→first-cell beam segment");
+        assertEquals(0f, entrySeg.eulerY, 1e-4f);
+        assertEquals(0.5f, entrySeg.scaleZ, 1e-4f);
+    }
+
+    @Test
+    void draftModeTestFireTracesDraftNotGhost() {
+        PuzzleMode puzzle = openBudget1();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+        FakeThin3D thin3d = services.thin3d();
+
+        presentation.update(input, 800, 600);
+        presentation.render(services.draw2d(), null, 800, 600);
+
+        // Ghost / at (2,0) would deflect T2; draft stays empty → straight DOWN to B2.
+        tap(input, presentation, ChromeOverlay.trayForwardCenterX(), ChromeOverlay.trayCenterY());
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), BoardPlane.cellCenterZ(0)));
+        tap(input, presentation, 100, 100);
+        assertEquals(PieceType.FORWARD, presentation.ghostBoard().pieceAt(2, 0));
+
+        tap(input, presentation, ChromeOverlay.modeDraftCenterX(), ChromeOverlay.modeCenterY());
+        assertEquals(ChromeOverlay.EditMode.DRAFT, presentation.editMode());
+
+        thin3d.clear();
+        float margin = BoardPlane.portStripMargin(6);
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f));
+        tap(input, presentation, 200, 200);
+        presentation.render(services.draw2d(), null, 800, 600);
+
+        // Empty draft: last rim segment ends at B2 (z = extent), not a side exit from the ghost /.
+        float extent = BoardPlane.boardExtent(6);
+        float exitMidZ = (BoardPlane.cellCenterZ(5) + extent) * 0.5f;
+        assertNotNull(findTrsNear(thin3d.commands(), BoardPlane.cellCenterX(2), exitMidZ));
+    }
+
+    @Test
+    void ghostPlaceAfterTestFireRetracesBeam() {
+        PuzzleMode puzzle = openBudget1();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+        FakeThin3D thin3d = services.thin3d();
+
+        presentation.update(input, 800, 600);
+        presentation.render(services.draw2d(), null, 800, 600);
+
+        float margin = BoardPlane.portStripMargin(6);
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f));
+        tap(input, presentation, 200, 200);
+
+        thin3d.clear();
+        tap(input, presentation, ChromeOverlay.trayForwardCenterX(), ChromeOverlay.trayCenterY());
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), BoardPlane.cellCenterZ(0)));
+        tap(input, presentation, 100, 100);
+        presentation.render(services.draw2d(), null, 800, 600);
+
+        assertEquals(PieceType.FORWARD, presentation.ghostBoard().pieceAt(2, 0));
+        // Sticky Test Fire re-traces: beam still recorded after ghost edit.
+        assertTrue(containsKind(thin3d.commands(), FakeThin3D.Command.Kind.INSTANCE_TRS));
+        assertNotNull(
+                findTrsNear(
+                        thin3d.commands(),
+                        BoardPlane.cellCenterX(2),
+                        (0f + BoardPlane.cellCenterZ(0)) * 0.5f));
+    }
+
+    @Test
+    void chromeLayoutTracksScreenSize() {
+        ChromeOverlay.Layout tall = ChromeOverlay.Layout.forSize(800, 900);
+        ChromeOverlay.Layout wide = ChromeOverlay.Layout.forSize(1280, 600);
+        assertTrue(tall.trayTop > ChromeOverlay.Layout.forSize(800, 600).trayTop);
+        assertTrue(wide.hudLeft > ChromeOverlay.Layout.forSize(800, 600).hudLeft);
+        assertEquals(
+                ChromeOverlay.ChromeHit.TRAY_FORWARD,
+                ChromeOverlay.hitTest(
+                        tall.trayForwardCenterX(), tall.trayCenterY(), tall.screenWidth, tall.screenHeight));
     }
 
     @Test
@@ -184,5 +264,17 @@ class PresentationTest {
             }
         }
         throw new AssertionError("missing command kind " + kind);
+    }
+
+    private static FakeThin3D.Command findTrsNear(
+            List<FakeThin3D.Command> commands, float x, float z) {
+        for (FakeThin3D.Command command : commands) {
+            if (command.kind == FakeThin3D.Command.Kind.INSTANCE_TRS
+                    && Math.abs(command.x - x) < 1e-3f
+                    && Math.abs(command.z - z) < 1e-3f) {
+                return command;
+            }
+        }
+        return null;
     }
 }

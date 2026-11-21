@@ -19,6 +19,16 @@ class BoardPlaneTest {
     }
 
     @Test
+    void portEdgeLiesOnBoardRim() {
+        Port t2 = Port.of(Port.Side.T, 2, 6);
+        assertEquals(BoardPlane.cellCenterX(2), BoardPlane.portEdgeX(t2, 6), 1e-5f);
+        assertEquals(0f, BoardPlane.portEdgeZ(t2, 6), 1e-5f);
+        Port r3 = Port.of(Port.Side.R, 3, 6);
+        assertEquals(BoardPlane.boardExtent(6), BoardPlane.portEdgeX(r3, 6), 1e-5f);
+        assertEquals(BoardPlane.cellCenterZ(3), BoardPlane.portEdgeZ(r3, 6), 1e-5f);
+    }
+
+    @Test
     void returnsNullWhenRayMissesPortStripsFarAway() {
         Ray ray = downwardOnto(-10f, -10f);
         assertNull(BoardPlane.portAt(ray, 6));

@@ -5,6 +5,7 @@ import io.github.worldsmiths.core.Font;
 import io.github.worldsmiths.core.Input;
 import io.github.worldsmiths.core.Key;
 import io.github.worldsmiths.core.thin3d.Thin3D;
+import io.github.worldsmiths.prismatrix.optics.BoardState;
 import io.github.worldsmiths.prismatrix.optics.Cell;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
@@ -20,7 +21,7 @@ import java.util.List;
 
 /**
  * Pitched presentation facade: {@link BoardView} (Thin3D) + {@link ChromeOverlay} (Draw2D/Font).
- * Ghost|Draft edit modes, promote, Verify, and Ghost-only Test Fire.
+ * Ghost|Draft edit modes, promote, Verify, and mode-scoped Test Fire (Ghost or Draft board).
  */
 public final class Presentation {
 
@@ -34,6 +35,8 @@ public final class Presentation {
     private VerifyResult lastVerify;
     private PromoteResult lastPromote;
     private List<ConsistencyBadge> badges = Collections.emptyList();
+    /** Last Test Fire entry port; re-traced after board edits / mode changes until cleared. */
+    private Port activeTestFirePort;
     private boolean verifyKeyWasDown;
     private boolean promoteKeyWasDown;
     private boolean ghostModeKeyWasDown;
@@ -59,14 +62,14 @@ public final class Presentation {
             return;
         }
         if (input.justTouched()) {
-            onTap(input.getX(), input.getY());
+            onTap(input.getX(), input.getY(), screenWidth, screenHeight);
         }
         handleKeys(input);
     }
 
     public void render(Draw2D draw2d, Font font, int screenWidth, int screenHeight) {
         boardView.ensureSized(screenWidth, screenHeight);
-        boardView.render(puzzle, ghosts);
+        boardView.render(puzzle, ghosts, badges, activeTestFirePort);
         ChromeOverlay.render(
                 draw2d,
                 font,
@@ -120,19 +123,20 @@ public final class Presentation {
 
         boolean ghostDown = input.isKeyDown(Key.G);
         if (ghostDown && !ghostModeKeyWasDown) {
-            mode = ChromeOverlay.EditMode.GHOST;
+            setMode(ChromeOverlay.EditMode.GHOST);
         }
         ghostModeKeyWasDown = ghostDown;
 
         boolean draftDown = input.isKeyDown(Key.D);
         if (draftDown && !draftModeKeyWasDown) {
-            mode = ChromeOverlay.EditMode.DRAFT;
+            setMode(ChromeOverlay.EditMode.DRAFT);
         }
         draftModeKeyWasDown = draftDown;
     }
 
-    private void onTap(int inputX, int inputY) {
-        ChromeOverlay.ChromeHit chrome = ChromeOverlay.hitTest(inputX, inputY);
+    private void onTap(int inputX, int inputY, int screenWidth, int screenHeight) {
+        ChromeOverlay.ChromeHit chrome =
+                ChromeOverlay.hitTest(inputX, inputY, screenWidth, screenHeight);
         switch (chrome) {
             case TRAY_FORWARD:
                 selected = PieceType.FORWARD;
@@ -141,10 +145,10 @@ public final class Presentation {
                 selected = PieceType.BACK;
                 return;
             case MODE_GHOST:
-                mode = ChromeOverlay.EditMode.GHOST;
+                setMode(ChromeOverlay.EditMode.GHOST);
                 return;
             case MODE_DRAFT:
-                mode = ChromeOverlay.EditMode.DRAFT;
+                setMode(ChromeOverlay.EditMode.DRAFT);
                 return;
             case PROMOTE:
                 doPromote();
@@ -166,12 +170,21 @@ public final class Presentation {
         placeOrRemove(cell.x(), cell.y());
     }
 
+    private void setMode(ChromeOverlay.EditMode next) {
+        if (mode == next) {
+            return;
+        }
+        mode = next;
+        refreshActiveTestFire();
+    }
+
     private void placeOrRemove(int x, int y) {
         if (mode == ChromeOverlay.EditMode.GHOST) {
             if (ghosts.pieceAt(x, y) != null) {
                 ghosts.remove(x, y);
                 lastVerify = null;
                 refreshBadges();
+                refreshActiveTestFire();
                 return;
             }
             if (selected != null) {
@@ -179,6 +192,7 @@ public final class Presentation {
                 if (result == PlaceResult.OK) {
                     lastVerify = null;
                     refreshBadges();
+                    refreshActiveTestFire();
                 }
             }
             return;
@@ -187,25 +201,47 @@ public final class Presentation {
         if (existing != null) {
             puzzle.remove(x, y);
             lastVerify = null;
+            refreshActiveTestFire();
             return;
         }
         if (selected != null) {
             PlaceResult result = puzzle.place(x, y, selected);
             if (result == PlaceResult.OK) {
                 lastVerify = null;
+                refreshActiveTestFire();
             }
         }
     }
 
     private void testFire(Port port) {
-        TraceResult traced = ConsistencyEngine.testFire(ghosts, port);
-        boardView.setBeamCells(traced.visitedCells());
+        activeTestFirePort = port;
+        refreshActiveTestFire();
+    }
+
+    /**
+     * Re-traces the sticky Test Fire port on the board for the current edit mode (Ghost or Draft).
+     */
+    private void refreshActiveTestFire() {
+        if (activeTestFirePort == null) {
+            boardView.clearBeam();
+            return;
+        }
+        TraceResult traced = ConsistencyEngine.testFire(traceBoard(), activeTestFirePort);
+        boardView.setBeamPath(activeTestFirePort, traced.visitedCells(), traced.exitPort());
+    }
+
+    private BoardState traceBoard() {
+        if (mode == ChromeOverlay.EditMode.DRAFT) {
+            return puzzle.draft().toBoardState();
+        }
+        return ghosts.toBoardState();
     }
 
     private void doPromote() {
         lastPromote = PromoteService.promote(ghosts, puzzle.draft());
         if (lastPromote.kind() == PromoteResult.Kind.OK) {
             lastVerify = null;
+            refreshActiveTestFire();
         }
     }
 

@@ -46,6 +46,42 @@ public final class BoardPlane {
         return PORT_STRIP_FRAC * boardExtent(gridSize);
     }
 
+    /** World X of the port on the board rim (cell-edge, not strip center). */
+    public static float portEdgeX(Port port, int gridSize) {
+        if (port == null) {
+            throw new IllegalArgumentException("port must not be null");
+        }
+        switch (port.side()) {
+            case T:
+            case B:
+                return cellCenterX(port.index());
+            case L:
+                return 0f;
+            case R:
+                return boardExtent(gridSize);
+            default:
+                throw new IllegalStateException("unknown side " + port.side());
+        }
+    }
+
+    /** World Z of the port on the board rim (cell-edge, not strip center). */
+    public static float portEdgeZ(Port port, int gridSize) {
+        if (port == null) {
+            throw new IllegalArgumentException("port must not be null");
+        }
+        switch (port.side()) {
+            case T:
+                return 0f;
+            case B:
+                return boardExtent(gridSize);
+            case L:
+            case R:
+                return cellCenterZ(port.index());
+            default:
+                throw new IllegalStateException("unknown side " + port.side());
+        }
+    }
+
     /**
      * Intersects {@code ray} with the board plane and returns the optics cell, or {@code null} if
      * the ray is parallel to the plane, hits behind the origin, or misses the grid.
