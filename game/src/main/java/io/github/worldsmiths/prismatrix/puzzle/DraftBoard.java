@@ -73,6 +73,16 @@ public final class DraftBoard {
         return gridSize;
     }
 
+    /**
+     * Piece at cell, or {@code null} if empty / out of bounds.
+     */
+    public PieceType pieceAt(int x, int y) {
+        if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
+            return null;
+        }
+        return cells[y][x];
+    }
+
     public BoardState toBoardState() {
         BoardState.Builder builder = BoardState.builder(gridSize);
         for (int y = 0; y < gridSize; y++) {

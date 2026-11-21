@@ -1,7 +1,7 @@
 package io.github.worldsmiths.prismatrix;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.worldsmiths.core.FakeEngineServices;
 import io.github.worldsmiths.core.Scene;
@@ -9,9 +9,23 @@ import org.junit.jupiter.api.Test;
 
 class PrismatrixGameTest {
 
+    private static final String MINIMAL_LEVEL =
+            "{"
+                    + "\"id\":\"w1-01\","
+                    + "\"gridSize\":6,"
+                    + "\"mirrorBudget\":1,"
+                    + "\"clues\":["
+                    + "{\"entryPort\":\"T2\",\"exitPort\":\"L2\",\"colorMask\":0}"
+                    + "]"
+                    + "}";
+
     @Test
     void createSceneLifecycleSetsPrismatrixTitle() {
         FakeEngineServices services = new FakeEngineServices();
+        services.files().putInternal(PrismatrixGame.FIRST_LEVEL_PATH, MINIMAL_LEVEL);
+        services.ui().putFont(PrismatrixGame.HUD_FONT);
+        services.graphics().setSize(800, 600);
+
         PrismatrixGame game = new PrismatrixGame();
 
         Scene scene = assertDoesNotThrow(game::createScene);
