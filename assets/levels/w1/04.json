@@ -1,0 +1,8 @@
+{
+  "id": "w1-04",
+  "gridSize": 6,
+  "mirrorBudget": 2,
+  "clues": [
+    {"entryPort": "T0", "exitPort": "T5", "colorMask": 0}
+  ]
+}
