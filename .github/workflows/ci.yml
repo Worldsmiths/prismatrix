@@ -47,6 +47,10 @@ jobs:
         working-directory: game
         run: bash ci/assert-thin3d-p1-names.sh
 
+      - name: Thin3D P1 name fence selftest (planted name must fail, then clean)
+        working-directory: game
+        run: bash ci/assert-thin3d-p1-names-selftest.sh
+
       - name: Compile desktop and run game tests
         working-directory: game
         run: |

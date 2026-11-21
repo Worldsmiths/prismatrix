@@ -15,7 +15,7 @@ Loads `levels/w1/01.json`. Tap the tray `/` or `\` then an empty cell to place; 
 
 Pitched / Ghost UX needs Thin3D **P1** (ortho + pick-ray + emissive + TRS) in the engine. That work is named for **M3** and is **not** required for this M2 first playable. M2 uses flat Draw2D + Font + Input only; no Thin3D ortho/pick/emissive/TRS calls in M2 sources.
 
-**Temporary name fence:** `ci/assert-thin3d-p1-names.sh` fails if `game/src` Java mentions P1 API names (`OrthographicCamera`, `getPickRay`, `create*Emissive`, `setTranslationRotationScaling`, `createOrthographicCamera`). **Removable** with the first intentional Thin3D P1 call PR (together with a `WORLDSMITHS_ENGINE_REF` pin bump). CI runs it next to Bar C.
+**Temporary name fence:** `ci/assert-thin3d-p1-names.sh` fails if `game/src` Java mentions P1 API names (`OrthographicCamera`, `getPickRay`, `create*Emissive`, `setTranslationRotationScaling`, `createOrthographicCamera`). **Removable** with the first intentional Thin3D P1 call PR (together with a `WORLDSMITHS_ENGINE_REF` pin bump). CI runs the fence then `ci/assert-thin3d-p1-names-selftest.sh` (planted-name proof) next to Bar C.
 
 ## Bar C
 
