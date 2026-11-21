@@ -10,7 +10,7 @@ import java.util.Random;
 
 /**
  * Headless dual-seat Classic match FSM. Fire traces the opponent secret and appends a sanitized
- * firer log; Guess wincon remains a stub until T4.
+ * firer log; Guess compares hypothesis under Orbs Only / GuessMirrors and can End(win).
  */
 public final class MatchKernel {
 
@@ -154,8 +154,10 @@ public final class MatchKernel {
     }
 
     /**
-     * Guess stub (wincon lands in T4). Refuses out-of-turn / budget 0 when capped.
-     * Miss path decrements budget via seat hook; correct Guess → Ended(win) deferred to T4.
+     * Submit a Classic hypothesis against the opponent secret. Correct Guess → Ended(win).
+     * Incorrect → burn budget if capped, end turn, no bonus Fire. Incomplete inventory /
+     * budget 0 (when capped) → refuse. Orbs Only ignores mirrors; GuessMirrors requires exact
+     * mirrors too.
      */
     public MatchActionResult guess(SeatId seatId, BoardState hypothesis) {
         MatchActionResult gate = gateTurnVerb(seatId);
@@ -166,8 +168,20 @@ public final class MatchKernel {
         if (seat.guessBudgetExhausted()) {
             return MatchActionResult.refused("GUESS_BUDGET_EXHAUSTED");
         }
-        // T4 will compare hypothesis under Orbs Only / GuessMirrors.
-        // Stub treats every Guess as a miss so budget hook is exercised.
+        if (hypothesis == null) {
+            return MatchActionResult.refused("NULL_BOARD");
+        }
+        if (hypothesis.size() != rules.gridSize()) {
+            return MatchActionResult.refused("WRONG_GRID");
+        }
+        if (!hasClassicInventory(hypothesis)) {
+            return MatchActionResult.refused("INCOMPLETE_INVENTORY");
+        }
+        BoardState secret = seat(seatId.opponent()).secret();
+        if (matchesHypothesis(hypothesis, secret, rules.guessMirrors())) {
+            endWin(seatId);
+            return MatchActionResult.ok();
+        }
         seat.decrementGuessBudgetOnMiss();
         endTurn();
         return MatchActionResult.ok();
@@ -249,6 +263,44 @@ public final class MatchKernel {
         forfeiter = who;
         winner = who.opponent();
         activeSeat = null;
+    }
+
+    private void endWin(SeatId who) {
+        phase = MatchPhase.ENDED;
+        endReason = EndReason.WIN;
+        winner = who;
+        forfeiter = null;
+        activeSeat = null;
+    }
+
+    /**
+     * Orbs Only: orb cells (type+position) must match; mirrors ignored. GuessMirrors: every
+     * cell must match including mirrors.
+     */
+    static boolean matchesHypothesis(BoardState hypothesis, BoardState secret, boolean guessMirrors) {
+        int size = secret.size();
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                PieceType h = hypothesis.pieceAt(x, y);
+                PieceType s = secret.pieceAt(x, y);
+                if (guessMirrors) {
+                    if (h != s) {
+                        return false;
+                    }
+                } else {
+                    if (isOrb(h) || isOrb(s)) {
+                        if (h != s) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean isOrb(PieceType piece) {
+        return piece == PieceType.ORB_R || piece == PieceType.ORB_G || piece == PieceType.ORB_B;
     }
 
     static boolean hasClassicInventory(BoardState board) {
