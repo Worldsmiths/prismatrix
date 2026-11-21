@@ -3,10 +3,14 @@ package io.github.worldsmiths.prismatrix.pvp;
 import io.github.worldsmiths.prismatrix.optics.BoardState;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
+import io.github.worldsmiths.prismatrix.optics.TraceCore;
+import io.github.worldsmiths.prismatrix.optics.TraceResult;
+import io.github.worldsmiths.prismatrix.sandbox.ObservedShot;
 import java.util.Random;
 
 /**
- * Headless dual-seat Classic match FSM. Fire Trace / Guess wincon are stubs until later tasks.
+ * Headless dual-seat Classic match FSM. Fire traces the opponent secret and appends a sanitized
+ * firer log; Guess wincon remains a stub until T4.
  */
 public final class MatchKernel {
 
@@ -26,6 +30,9 @@ public final class MatchKernel {
 
     private float setupElapsed;
     private float matchElapsed;
+
+    private FireObservation lastFirerFire;
+    private FireObservation lastOwnerFire;
 
     public MatchKernel(MatchRules rules, Random random) {
         if (rules == null) {
@@ -69,6 +76,29 @@ public final class MatchKernel {
         return id == SeatId.A ? seatA : seatB;
     }
 
+    /** Last accepted Fire as seen by the firer ({@code visitedCells == null}); null if none. */
+    public FireObservation lastFirerFire() {
+        return lastFirerFire;
+    }
+
+    /** Last accepted Fire as seen by the owner (full path); null if none. */
+    public FireObservation lastOwnerFire() {
+        return lastOwnerFire;
+    }
+
+    /** Sanitized snapshot for {@code viewer} (own log + Fire channels; no opponent secret). */
+    public MatchView viewFor(SeatId viewer) {
+        Seat seat = seat(viewer);
+        return new MatchView(
+                viewer,
+                phase,
+                activeSeat,
+                seat.fireLog(),
+                lastFirerFire,
+                lastOwnerFire,
+                seat.guessesLeft());
+    }
+
     /**
      * Accept a Classic secret board for {@code seat}. Untimed matches require explicit Ready;
      * incomplete Classic inventory is refused.
@@ -98,15 +128,27 @@ public final class MatchKernel {
     }
 
     /**
-     * Fire stub (Trace sanitize lands in T3). Refuses out-of-turn / non-playing.
-     * On accept, ends the turn (Fire XOR Guess per turn).
+     * Trace opponent secret from {@code port}, append sanitized {@link ObservedShot} to the
+     * firer's log, and publish firer/owner Fire observations. Refuses out-of-turn / illegal port
+     * with no log append. Same-port Fire is allowed (new log row). Ends the turn on accept.
      */
     public MatchActionResult fire(SeatId seatId, Port port) {
         MatchActionResult gate = gateTurnVerb(seatId);
         if (!gate.accepted()) {
             return gate;
         }
-        // T3 will run Trace against opponent secret and append firer log.
+        if (port == null || !isLegalPort(port)) {
+            return MatchActionResult.refused("ILLEGAL_PORT");
+        }
+        Seat firer = seat(seatId);
+        BoardState opponentSecret = seat(seatId.opponent()).secret();
+        TraceResult traced = TraceCore.trace(opponentSecret, port);
+        ObservedShot shot = new ObservedShot(port, traced.exitPort(), traced.colorMask());
+        firer.appendFire(shot);
+        lastFirerFire = FireObservation.firer(port, traced.exitPort(), traced.colorMask());
+        lastOwnerFire =
+                FireObservation.owner(
+                        port, traced.exitPort(), traced.colorMask(), traced.visitedCells());
         endTurn();
         return MatchActionResult.ok();
     }
@@ -163,6 +205,16 @@ public final class MatchKernel {
             return MatchActionResult.refused("OUT_OF_TURN");
         }
         return MatchActionResult.ok();
+    }
+
+    private boolean isLegalPort(Port port) {
+        int n = rules.gridSize();
+        try {
+            Port.of(port.side(), port.index(), n);
+            return true;
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
     }
 
     private void beginPlaying() {
