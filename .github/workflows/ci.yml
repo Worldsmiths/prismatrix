@@ -43,6 +43,10 @@ jobs:
         working-directory: game
         run: bash ci/assert-bar-c.sh
 
+      - name: Thin3D P1 name fence (temporary; remove with first call PR)
+        working-directory: game
+        run: bash ci/assert-thin3d-p1-names.sh
+
       - name: Compile desktop and run game tests
         working-directory: game
         run: |
