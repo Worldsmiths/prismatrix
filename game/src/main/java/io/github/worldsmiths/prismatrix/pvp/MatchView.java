@@ -68,8 +68,8 @@ public final class MatchView {
     }
 
     /**
-     * Last Fire as owner beam (full path). Present after any accepted Fire; chrome shows it when
-     * this viewer owns the target secret.
+     * Last Fire as owner beam (full path). Non-null only when this viewer owns the target secret;
+     * firer and other seats always see null.
      */
     public FireObservation lastOwnerFire() {
         return lastOwnerFire;

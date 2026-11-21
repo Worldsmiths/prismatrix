@@ -33,6 +33,8 @@ public final class MatchKernel {
 
     private FireObservation lastFirerFire;
     private FireObservation lastOwnerFire;
+    /** Seat whose secret was the target of {@link #lastOwnerFire}; null when none. */
+    private SeatId lastOwnerSeat;
 
     public MatchKernel(MatchRules rules, Random random) {
         if (rules == null) {
@@ -81,14 +83,18 @@ public final class MatchKernel {
         return lastFirerFire;
     }
 
-    /** Last accepted Fire as seen by the owner (full path); null if none. */
-    public FireObservation lastOwnerFire() {
+    /**
+     * Last accepted Fire as seen by the owner (full path); null if none. Prefer {@link
+     * #viewFor(SeatId)} for seat-facing reads — only the owner seat receives this channel.
+     */
+    FireObservation lastOwnerFire() {
         return lastOwnerFire;
     }
 
     /** Sanitized snapshot for {@code viewer} (own log + Fire channels; no opponent secret). */
     public MatchView viewFor(SeatId viewer) {
         Seat seat = seat(viewer);
+        FireObservation ownerFire = viewer == lastOwnerSeat ? lastOwnerFire : null;
         return new MatchView(
                 viewer,
                 phase,
@@ -96,7 +102,7 @@ public final class MatchKernel {
                 rules.gridSize(),
                 seat.fireLog(),
                 lastFirerFire,
-                lastOwnerFire,
+                ownerFire,
                 seat.guessesLeft());
     }
 
@@ -150,6 +156,7 @@ public final class MatchKernel {
         lastOwnerFire =
                 FireObservation.owner(
                         port, traced.exitPort(), traced.colorMask(), traced.visitedCells());
+        lastOwnerSeat = seatId.opponent();
         endTurn();
         return MatchActionResult.ok();
     }
@@ -180,12 +187,19 @@ public final class MatchKernel {
         }
         BoardState secret = seat(seatId.opponent()).secret();
         if (matchesHypothesis(hypothesis, secret, rules.guessMirrors())) {
+            clearLastOwnerFire();
             endWin(seatId);
             return MatchActionResult.ok();
         }
         seat.decrementGuessBudgetOnMiss();
+        clearLastOwnerFire();
         endTurn();
         return MatchActionResult.ok();
+    }
+
+    private void clearLastOwnerFire() {
+        lastOwnerFire = null;
+        lastOwnerSeat = null;
     }
 
     /**

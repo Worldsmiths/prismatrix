@@ -54,10 +54,62 @@ class MatchKernelFireTest {
 
         MatchView firerView = kernel.viewFor(SeatId.A);
         assertNull(firerView.lastFirerFire().visitedCells());
+        assertNull(firerView.lastOwnerFire());
         assertEquals(1, firerView.fireLog().size());
         MatchView ownerView = kernel.viewFor(SeatId.B);
+        assertNotNull(ownerView.lastOwnerFire());
         assertNotNull(ownerView.lastOwnerFire().visitedCells());
         assertTrue(ownerView.fireLog().isEmpty());
+    }
+
+    @Test
+    void firerMatchViewDoesNotIncludeOwnerPath() {
+        MatchKernel kernel = playingKernelAFirst();
+        Port entry = Port.of(Port.Side.T, 0, 8);
+
+        assertTrue(kernel.fire(SeatId.A, entry).accepted());
+
+        assertNull(kernel.viewFor(SeatId.A).lastOwnerFire());
+        assertNotNull(kernel.viewFor(SeatId.B).lastOwnerFire().visitedCells());
+        assertNull(kernel.viewFor(SeatId.A).lastFirerFire().visitedCells());
+    }
+
+    @Test
+    void afterAiFireThenHumanGuessMissAiMatchViewHasNoOwnerPath() {
+        // B = AI firer first; A = human owner then Guess miss.
+        Random coin =
+                new Random() {
+                    @Override
+                    public boolean nextBoolean() {
+                        return false; // Seat B (AI) first
+                    }
+                };
+        MatchKernel kernel = new MatchKernel(MatchRules.classic(), coin);
+        assertTrue(kernel.ready(SeatId.A, classicBoard()).accepted());
+        assertTrue(kernel.ready(SeatId.B, classicBoard()).accepted());
+        assertEquals(SeatId.B, kernel.activeSeat());
+
+        Port entry = Port.of(Port.Side.T, 0, 8);
+        assertTrue(kernel.fire(SeatId.B, entry).accepted());
+        assertNotNull(kernel.viewFor(SeatId.A).lastOwnerFire().visitedCells());
+        assertNull(kernel.viewFor(SeatId.B).lastOwnerFire());
+
+        // Wrong orbs → miss; turn returns to AI.
+        BoardState wrongGuess =
+                BoardState.builder(8)
+                        .place(0, 1, PieceType.ORB_R)
+                        .place(1, 1, PieceType.ORB_G)
+                        .place(2, 1, PieceType.ORB_B)
+                        .place(3, 0, PieceType.FORWARD)
+                        .place(4, 0, PieceType.FORWARD)
+                        .place(5, 0, PieceType.BACK)
+                        .place(6, 0, PieceType.BACK)
+                        .build();
+        assertTrue(kernel.guess(SeatId.A, wrongGuess).accepted());
+        assertEquals(SeatId.B, kernel.activeSeat());
+
+        assertNull(kernel.viewFor(SeatId.B).lastOwnerFire());
+        assertNull(kernel.viewFor(SeatId.A).lastOwnerFire());
     }
 
     @Test

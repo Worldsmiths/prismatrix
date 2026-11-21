@@ -29,8 +29,8 @@ public final class Seat {
         return ready;
     }
 
-    /** Secret board after Ready; null before Ready. */
-    public BoardState secret() {
+    /** Secret board after Ready; null before Ready. Package-private — not for AI MatchView. */
+    BoardState secret() {
         return secret;
     }
 

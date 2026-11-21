@@ -232,8 +232,8 @@ public final class PvpPresentation {
         if (action.kind() == AiAction.Kind.FIRE) {
             MatchActionResult fired = kernel.fire(aiSeat, action.port());
             if (fired.accepted()) {
-                // Owner beam for human — full path. Never feed this into firer HUD BoardView.
-                pendingOwnerBeam = kernel.lastOwnerFire();
+                // Owner beam for human — full path via seat-gated MatchView. Never firer HUD.
+                pendingOwnerBeam = kernel.viewFor(humanSeat).lastOwnerFire();
                 lastFirerHud = null;
                 aiActedThisTurn = true;
             }
