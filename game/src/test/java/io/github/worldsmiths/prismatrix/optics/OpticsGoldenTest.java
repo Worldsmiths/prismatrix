@@ -2,8 +2,12 @@ package io.github.worldsmiths.prismatrix.optics;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+
+import java.util.Arrays;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +25,35 @@ class OpticsGoldenTest {
         assertEquals(1, result.exitPort().index());
         assertEquals(0, result.colorMask());
         assertEquals(0, result.totalBounces());
+    }
+
+    @Test
+    void emptyCorridor_T1_recordsOrderedVisitedCells() {
+        BoardState board = BoardState.builder(3).build();
+        Port entry = Port.of(Port.Side.T, 1, 3);
+
+        TraceResult result = TraceCore.trace(board, entry);
+
+        List<Cell> path = result.visitedCells();
+        assertFalse(path.isEmpty(), "multi-cell ray must record visited cells");
+        assertEquals(
+                Arrays.asList(new Cell(1, 0), new Cell(1, 1), new Cell(1, 2)), path);
+    }
+
+    @Test
+    void mirrorCorridor_T1_forward_recordsOrderedVisitedCells() {
+        // `/` at (1,1): (1,0) Down → (1,1) reflect Down→Left → (0,1) → exit L1
+        BoardState board = BoardState.builder(3).place(1, 1, PieceType.FORWARD).build();
+        Port entry = Port.of(Port.Side.T, 1, 3);
+
+        TraceResult result = TraceCore.trace(board, entry);
+
+        List<Cell> path = result.visitedCells();
+        assertFalse(path.isEmpty(), "multi-cell ray must record visited cells");
+        assertEquals(
+                Arrays.asList(new Cell(1, 0), new Cell(1, 1), new Cell(0, 1)), path);
+        assertEquals(Port.Side.L, result.exitPort().side());
+        assertEquals(1, result.exitPort().index());
     }
 
     @Test
