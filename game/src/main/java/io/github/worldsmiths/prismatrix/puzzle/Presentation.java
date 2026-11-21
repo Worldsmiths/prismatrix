@@ -1,70 +1,98 @@
 package io.github.worldsmiths.prismatrix.puzzle;
 
 import io.github.worldsmiths.core.Draw2D;
-import io.github.worldsmiths.core.DrawMode;
 import io.github.worldsmiths.core.Font;
 import io.github.worldsmiths.core.Input;
 import io.github.worldsmiths.core.Key;
+import io.github.worldsmiths.core.thin3d.Thin3D;
+import io.github.worldsmiths.prismatrix.optics.BoardState;
+import io.github.worldsmiths.prismatrix.optics.Cell;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
+import io.github.worldsmiths.prismatrix.optics.TraceResult;
+import io.github.worldsmiths.prismatrix.sandbox.ConsistencyBadge;
+import io.github.worldsmiths.prismatrix.sandbox.ConsistencyEngine;
+import io.github.worldsmiths.prismatrix.sandbox.GhostBoard;
+import io.github.worldsmiths.prismatrix.sandbox.ObservedShot;
+import io.github.worldsmiths.prismatrix.sandbox.PromoteResult;
+import io.github.worldsmiths.prismatrix.sandbox.PromoteService;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * Flat P0 Draw2D + Font + Input presentation for Puzzle W1.
- *
- * <p>Y adapters: {@link Input} is top-left origin; {@link Draw2D} ortho is bottom-left. Optics
- * {@code y=0} is mapped to the visual top of the grid so T ports sit along the top edge.
+ * Pitched presentation facade: {@link BoardView} (Thin3D) + {@link ChromeOverlay} (Draw2D/Font).
+ * Ghost|Draft edit modes, promote, Verify, and mode-scoped Test Fire (Ghost or Draft board).
  */
 public final class Presentation {
 
-    static final float CELL = 56f;
-    static final float GRID_LEFT = 40f;
-    /** Input-space top of the optics grid (smaller Y = higher on screen). */
-    static final float GRID_TOP = 40f;
-    static final float TRAY_TOP = 400f;
-    static final float TRAY_BTN = 48f;
-    static final float TRAY_GAP = 16f;
-    static final float HUD_LEFT = 400f;
-
     private final PuzzleMode puzzle;
+    private final GhostBoard ghosts;
+    private final List<ObservedShot> observations;
+    private final BoardView boardView;
+
+    private ChromeOverlay.EditMode mode = ChromeOverlay.EditMode.GHOST;
     private PieceType selected;
     private VerifyResult lastVerify;
+    private PromoteResult lastPromote;
+    private List<ConsistencyBadge> badges = Collections.emptyList();
+    /** Last Test Fire entry port; re-traced after board edits / mode changes until cleared. */
+    private Port activeTestFirePort;
     private boolean verifyKeyWasDown;
+    private boolean promoteKeyWasDown;
+    private boolean ghostModeKeyWasDown;
+    private boolean draftModeKeyWasDown;
 
-    public Presentation(PuzzleMode puzzle) {
+    public Presentation(PuzzleMode puzzle, Thin3D thin3d) {
         if (puzzle == null) {
             throw new IllegalArgumentException("puzzle must not be null");
         }
+        if (thin3d == null) {
+            throw new IllegalArgumentException("thin3d must not be null");
+        }
         this.puzzle = puzzle;
+        this.ghosts = new GhostBoard(puzzle.draft());
+        this.observations = ObservedShot.fromClues(puzzle.clues());
+        this.boardView = new BoardView(thin3d, puzzle.gridSize());
+        refreshBadges();
     }
 
     public void update(Input input, int screenWidth, int screenHeight) {
+        boardView.ensureSized(screenWidth, screenHeight);
         if (input == null) {
             return;
         }
         if (input.justTouched()) {
-            onTap(input.getX(), input.getY());
+            onTap(input.getX(), input.getY(), screenWidth, screenHeight);
         }
-        boolean verifyDown = input.isKeyDown(Key.ENTER) || input.isKeyDown(Key.V);
-        if (verifyDown && !verifyKeyWasDown && puzzle.canVerify()) {
-            lastVerify = puzzle.verify();
-        }
-        verifyKeyWasDown = verifyDown;
+        handleKeys(input);
     }
 
     public void render(Draw2D draw2d, Font font, int screenWidth, int screenHeight) {
-        if (draw2d == null) {
-            return;
-        }
-        int w = screenWidth > 0 ? screenWidth : 800;
-        int h = screenHeight > 0 ? screenHeight : 600;
-        draw2d.setOrtho2D(0f, 0f, w, h);
-        drawGrid(draw2d, h);
-        drawTray(draw2d, h);
-        drawMirrors(draw2d, h);
-        if (font != null) {
-            drawHud(font, h);
-        }
+        boardView.ensureSized(screenWidth, screenHeight);
+        boardView.render(puzzle, ghosts, badges, activeTestFirePort);
+        ChromeOverlay.render(
+                draw2d,
+                font,
+                screenWidth,
+                screenHeight,
+                mode,
+                selected,
+                puzzle,
+                badges,
+                lastVerify,
+                lastPromote);
+    }
+
+    public void dispose() {
+        boardView.dispose();
+    }
+
+    public GhostBoard ghostBoard() {
+        return ghosts;
+    }
+
+    public ChromeOverlay.EditMode editMode() {
+        return mode;
     }
 
     /** Last Verify outcome from keyboard, or {@code null} if Verify has not run. */
@@ -72,191 +100,152 @@ public final class Presentation {
         return lastVerify;
     }
 
-    /**
-     * Hit-test in Input coordinates (top-left origin). Returns {@code {opticsX, opticsY}} or {@code
-     * null} if outside the grid.
-     */
-    int[] hitTestCell(int inputX, int inputY) {
-        int n = puzzle.gridSize();
-        float gridRight = GRID_LEFT + n * CELL;
-        float gridBottomInput = GRID_TOP + n * CELL;
-        if (inputX < GRID_LEFT || inputX >= gridRight || inputY < GRID_TOP || inputY >= gridBottomInput) {
-            return null;
+    public PromoteResult lastPromoteResult() {
+        return lastPromote;
+    }
+
+    public List<ConsistencyBadge> badges() {
+        return badges;
+    }
+
+    private void handleKeys(Input input) {
+        boolean verifyDown = input.isKeyDown(Key.ENTER) || input.isKeyDown(Key.V);
+        if (verifyDown && !verifyKeyWasDown && puzzle.canVerify()) {
+            lastVerify = puzzle.verify();
         }
-        int ox = (int) ((inputX - GRID_LEFT) / CELL);
-        // Optics y=0 at visual top: smaller inputY → smaller opticsY.
-        int oy = (int) ((inputY - GRID_TOP) / CELL);
-        if (ox < 0 || ox >= n || oy < 0 || oy >= n) {
-            return null;
+        verifyKeyWasDown = verifyDown;
+
+        boolean promoteDown = input.isKeyDown(Key.P);
+        if (promoteDown && !promoteKeyWasDown) {
+            doPromote();
         }
-        return new int[] {ox, oy};
+        promoteKeyWasDown = promoteDown;
+
+        boolean ghostDown = input.isKeyDown(Key.G);
+        if (ghostDown && !ghostModeKeyWasDown) {
+            setMode(ChromeOverlay.EditMode.GHOST);
+        }
+        ghostModeKeyWasDown = ghostDown;
+
+        boolean draftDown = input.isKeyDown(Key.D);
+        if (draftDown && !draftModeKeyWasDown) {
+            setMode(ChromeOverlay.EditMode.DRAFT);
+        }
+        draftModeKeyWasDown = draftDown;
     }
 
-    static int trayForwardCenterX() {
-        return (int) (GRID_LEFT + TRAY_BTN / 2f);
-    }
+    private void onTap(int inputX, int inputY, int screenWidth, int screenHeight) {
+        ChromeOverlay.ChromeHit chrome =
+                ChromeOverlay.hitTest(inputX, inputY, screenWidth, screenHeight);
+        switch (chrome) {
+            case TRAY_FORWARD:
+                selected = PieceType.FORWARD;
+                return;
+            case TRAY_BACK:
+                selected = PieceType.BACK;
+                return;
+            case MODE_GHOST:
+                setMode(ChromeOverlay.EditMode.GHOST);
+                return;
+            case MODE_DRAFT:
+                setMode(ChromeOverlay.EditMode.DRAFT);
+                return;
+            case PROMOTE:
+                doPromote();
+                return;
+            case NONE:
+            default:
+                break;
+        }
 
-    static int trayBackCenterX() {
-        return (int) (GRID_LEFT + TRAY_BTN + TRAY_GAP + TRAY_BTN / 2f);
-    }
-
-    static int trayCenterY() {
-        return (int) (TRAY_TOP + TRAY_BTN / 2f);
-    }
-
-    private void onTap(int inputX, int inputY) {
-        if (hitTrayForward(inputX, inputY)) {
-            selected = PieceType.FORWARD;
+        BoardView.Pick hit = boardView.pick(inputX, inputY);
+        if (hit.port() != null) {
+            testFire(hit.port());
             return;
         }
-        if (hitTrayBack(inputX, inputY)) {
-            selected = PieceType.BACK;
-            return;
-        }
-        int[] cell = hitTestCell(inputX, inputY);
+        Cell cell = hit.cell();
         if (cell == null) {
             return;
         }
-        int ox = cell[0];
-        int oy = cell[1];
-        PieceType existing = puzzle.pieceAt(ox, oy);
+        placeOrRemove(cell.x(), cell.y());
+    }
+
+    private void setMode(ChromeOverlay.EditMode next) {
+        if (mode == next) {
+            return;
+        }
+        mode = next;
+        refreshActiveTestFire();
+    }
+
+    private void placeOrRemove(int x, int y) {
+        if (mode == ChromeOverlay.EditMode.GHOST) {
+            if (ghosts.pieceAt(x, y) != null) {
+                ghosts.remove(x, y);
+                lastVerify = null;
+                refreshBadges();
+                refreshActiveTestFire();
+                return;
+            }
+            if (selected != null) {
+                PlaceResult result = ghosts.place(x, y, selected);
+                if (result == PlaceResult.OK) {
+                    lastVerify = null;
+                    refreshBadges();
+                    refreshActiveTestFire();
+                }
+            }
+            return;
+        }
+        PieceType existing = puzzle.pieceAt(x, y);
         if (existing != null) {
-            puzzle.remove(ox, oy);
+            puzzle.remove(x, y);
             lastVerify = null;
+            refreshActiveTestFire();
             return;
         }
         if (selected != null) {
-            PlaceResult result = puzzle.place(ox, oy, selected);
+            PlaceResult result = puzzle.place(x, y, selected);
             if (result == PlaceResult.OK) {
                 lastVerify = null;
+                refreshActiveTestFire();
             }
         }
     }
 
-    private static boolean hitTrayForward(int inputX, int inputY) {
-        return inRect(inputX, inputY, GRID_LEFT, TRAY_TOP, TRAY_BTN, TRAY_BTN);
+    private void testFire(Port port) {
+        activeTestFirePort = port;
+        refreshActiveTestFire();
     }
 
-    private static boolean hitTrayBack(int inputX, int inputY) {
-        return inRect(
-                inputX, inputY, GRID_LEFT + TRAY_BTN + TRAY_GAP, TRAY_TOP, TRAY_BTN, TRAY_BTN);
-    }
-
-    private static boolean inRect(
-            int x, int y, float left, float top, float width, float height) {
-        return x >= left && x < left + width && y >= top && y < top + height;
-    }
-
-    private void drawGrid(Draw2D g, int screenHeight) {
-        int n = puzzle.gridSize();
-        float gridBottom = screenHeight - GRID_TOP - n * CELL;
-        g.begin(DrawMode.LINE);
-        g.setColor(0.55f, 0.55f, 0.6f, 1f);
-        for (int i = 0; i <= n; i++) {
-            float x = GRID_LEFT + i * CELL;
-            g.line(x, gridBottom, x, gridBottom + n * CELL);
-            float y = gridBottom + i * CELL;
-            g.line(GRID_LEFT, y, GRID_LEFT + n * CELL, y);
+    /**
+     * Re-traces the sticky Test Fire port on the board for the current edit mode (Ghost or Draft).
+     */
+    private void refreshActiveTestFire() {
+        if (activeTestFirePort == null) {
+            boardView.clearBeam();
+            return;
         }
-        g.end();
+        TraceResult traced = ConsistencyEngine.testFire(traceBoard(), activeTestFirePort);
+        boardView.setBeamPath(activeTestFirePort, traced.visitedCells(), traced.exitPort());
     }
 
-    private void drawTray(Draw2D g, int screenHeight) {
-        float trayDrawY = screenHeight - TRAY_TOP - TRAY_BTN;
-        g.begin(DrawMode.LINE);
-        g.setColor(
-                selected == PieceType.FORWARD ? 0.95f : 0.7f,
-                selected == PieceType.FORWARD ? 0.85f : 0.7f,
-                selected == PieceType.FORWARD ? 0.35f : 0.72f,
-                1f);
-        g.rect(GRID_LEFT, trayDrawY, TRAY_BTN, TRAY_BTN);
-        drawSlash(g, GRID_LEFT, trayDrawY, TRAY_BTN, true);
-        float backLeft = GRID_LEFT + TRAY_BTN + TRAY_GAP;
-        g.setColor(
-                selected == PieceType.BACK ? 0.95f : 0.7f,
-                selected == PieceType.BACK ? 0.85f : 0.7f,
-                selected == PieceType.BACK ? 0.35f : 0.72f,
-                1f);
-        g.rect(backLeft, trayDrawY, TRAY_BTN, TRAY_BTN);
-        drawSlash(g, backLeft, trayDrawY, TRAY_BTN, false);
-        g.end();
-    }
-
-    private void drawMirrors(Draw2D g, int screenHeight) {
-        int n = puzzle.gridSize();
-        float gridBottom = screenHeight - GRID_TOP - n * CELL;
-        g.begin(DrawMode.LINE);
-        g.setColor(0.9f, 0.9f, 0.95f, 1f);
-        for (int oy = 0; oy < n; oy++) {
-            for (int ox = 0; ox < n; ox++) {
-                PieceType piece = puzzle.pieceAt(ox, oy);
-                if (piece == null) {
-                    continue;
-                }
-                float cellLeft = GRID_LEFT + ox * CELL;
-                // Optics y=0 at visual top → highest Draw2D y among cells.
-                float cellBottom = gridBottom + (n - 1 - oy) * CELL;
-                drawSlash(g, cellLeft, cellBottom, CELL, piece == PieceType.FORWARD);
-            }
+    private BoardState traceBoard() {
+        if (mode == ChromeOverlay.EditMode.DRAFT) {
+            return puzzle.draft().toBoardState();
         }
-        g.end();
+        return ghosts.toBoardState();
     }
 
-    private static void drawSlash(
-            Draw2D g, float cellLeft, float cellBottom, float size, boolean forward) {
-        float pad = size * 0.2f;
-        if (forward) {
-            // FORWARD = / : bottom-left to top-right in Draw2D space
-            g.line(cellLeft + pad, cellBottom + pad, cellLeft + size - pad, cellBottom + size - pad);
-        } else {
-            // BACK = \ : top-left to bottom-right in Draw2D space
-            g.line(cellLeft + pad, cellBottom + size - pad, cellLeft + size - pad, cellBottom + pad);
+    private void doPromote() {
+        lastPromote = PromoteService.promote(ghosts, puzzle.draft());
+        if (lastPromote.kind() == PromoteResult.Kind.OK) {
+            lastVerify = null;
+            refreshActiveTestFire();
         }
     }
 
-    private void drawHud(Font font, int screenHeight) {
-        float line = screenHeight - 48f;
-        font.drawString("Remaining: " + puzzle.remaining() + " / " + puzzle.mirrorBudget(), HUD_LEFT, line);
-        line -= 28f;
-        font.drawString("Clues:", HUD_LEFT, line);
-        List<ClueDefinition> clues = puzzle.clues();
-        for (int i = 0; i < clues.size(); i++) {
-            line -= 22f;
-            ClueDefinition c = clues.get(i);
-            font.drawString(
-                    c.entryPort() + " -> " + c.exitPort() + " mask=" + c.colorMask(),
-                    HUD_LEFT,
-                    line);
-        }
-        line -= 36f;
-        font.drawString(verifyChrome(), HUD_LEFT, line);
-        line -= 24f;
-        if (lastVerify != null && !lastVerify.isOk() && !lastVerify.isRefused()) {
-            List<Port> ports = lastVerify.mismatchedEntryPorts();
-            StringBuilder sb = new StringBuilder("Mismatch: ");
-            for (int i = 0; i < ports.size(); i++) {
-                if (i > 0) {
-                    sb.append(", ");
-                }
-                sb.append(ports.get(i));
-            }
-            font.drawString(sb.toString(), HUD_LEFT, line);
-        }
-    }
-
-    private String verifyChrome() {
-        if (!puzzle.canVerify()) {
-            return "Verify: disabled (spend budget)";
-        }
-        if (lastVerify == null) {
-            return "Verify: ready (ENTER / V)";
-        }
-        if (lastVerify.isOk()) {
-            return "Verify: OK";
-        }
-        if (lastVerify.isRefused()) {
-            return "Verify: disabled (spend budget)";
-        }
-        return "Verify: FAIL";
+    private void refreshBadges() {
+        badges = ConsistencyEngine.evaluate(ghosts, observations);
     }
 }

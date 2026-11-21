@@ -1,6 +1,8 @@
 package io.github.worldsmiths.prismatrix.optics;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -54,16 +56,19 @@ public final class TraceCore {
         int color = startColor;
         int bounces = 0;
         Set<Long> visited = new HashSet<Long>();
+        List<Cell> path = new ArrayList<Cell>();
 
         while (true) {
             long key = visitKey(x, y, dir, color);
             if (!visited.add(key)) {
-                return new TraceResult(null, 0, bounces);
+                return new TraceResult(null, 0, bounces, path);
             }
+
+            path.add(new Cell(x, y));
 
             PieceType piece = board.pieceAt(x, y);
             if (piece == PieceType.ABSORBER) {
-                return new TraceResult(null, 0, bounces);
+                return new TraceResult(null, 0, bounces, path);
             }
             if (piece == PieceType.FORWARD || piece == PieceType.BACK) {
                 dir = reflect(piece, dir);
@@ -75,7 +80,7 @@ public final class TraceCore {
             int nx = x + dir.deltaX();
             int ny = y + dir.deltaY();
             if (nx < 0 || ny < 0 || nx >= n || ny >= n) {
-                return new TraceResult(exitPort(x, y, dir, n), color, bounces);
+                return new TraceResult(exitPort(x, y, dir, n), color, bounces, path);
             }
             x = nx;
             y = ny;

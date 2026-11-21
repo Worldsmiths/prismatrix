@@ -37,6 +37,11 @@ public final class PuzzleMode {
         return level;
     }
 
+    /** Mutable draft board used by Verify; Ghost promote writes here. */
+    public DraftBoard draft() {
+        return draft;
+    }
+
     public List<ClueDefinition> clues() {
         return level.clues();
     }

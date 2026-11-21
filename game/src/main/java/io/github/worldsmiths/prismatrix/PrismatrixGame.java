@@ -10,8 +10,8 @@ import io.github.worldsmiths.prismatrix.puzzle.Presentation;
 import io.github.worldsmiths.prismatrix.puzzle.PuzzleMode;
 
 /**
- * Prismatrix desktop Puzzle W1: loads the first packaged level, drives flat P0 {@link
- * Presentation}, and holds the active {@link PuzzleMode} session.
+ * Prismatrix desktop Puzzle W1: loads the first packaged level, drives pitched {@link
+ * Presentation} (BoardView + ChromeOverlay), and holds the active {@link PuzzleMode} session.
  */
 public final class PrismatrixGame implements WorldsmithsGame {
 
@@ -41,7 +41,7 @@ public final class PrismatrixGame implements WorldsmithsGame {
             throw new EngineException("Failed to load " + FIRST_LEVEL_PATH, e);
         }
         font = services.ui().createFont(HUD_FONT);
-        presentation = new Presentation(puzzle);
+        presentation = new Presentation(puzzle, services.thin3d());
     }
 
     @Override
@@ -64,6 +64,10 @@ public final class PrismatrixGame implements WorldsmithsGame {
 
     @Override
     public void dispose() {
+        if (presentation != null) {
+            presentation.dispose();
+            presentation = null;
+        }
         if (font != null) {
             font.dispose();
             font = null;

@@ -2,14 +2,21 @@ package io.github.worldsmiths.prismatrix.puzzle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.worldsmiths.core.FakeEngineServices;
 import io.github.worldsmiths.core.FakeInput;
 import io.github.worldsmiths.core.Key;
+import io.github.worldsmiths.core.thin3d.FakeThin3D;
+import io.github.worldsmiths.core.thin3d.Ray;
+import io.github.worldsmiths.core.thin3d.Vec3;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
+import io.github.worldsmiths.prismatrix.sandbox.PromoteResult;
 import java.util.Collections;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class PresentationTest {
@@ -28,64 +35,54 @@ class PresentationTest {
         return PuzzleMode.open(level);
     }
 
-    @Test
-    void hitTestMapsTopLeftCellToOpticsYZero() {
-        Presentation presentation = new Presentation(openBudget1());
-        int[] cell =
-                presentation.hitTestCell(
-                        (int) (Presentation.GRID_LEFT + 4), (int) (Presentation.GRID_TOP + 4));
-        assertEquals(0, cell[0]);
-        assertEquals(0, cell[1]);
+    private static Presentation pitched(PuzzleMode puzzle, FakeEngineServices services) {
+        return new Presentation(puzzle, services.thin3d());
     }
 
     @Test
-    void hitTestMapsBottomRowToOpticsYFive() {
-        Presentation presentation = new Presentation(openBudget1());
-        float inputY =
-                Presentation.GRID_TOP
-                        + Presentation.CELL * 5
-                        + Presentation.CELL / 2f;
-        int[] cell = presentation.hitTestCell((int) (Presentation.GRID_LEFT + 4), (int) inputY);
-        assertEquals(0, cell[0]);
-        assertEquals(5, cell[1]);
-    }
-
-    @Test
-    void trayThenEmptyCellPlacesSelectedMirror() {
+    void ghostModeTrayThenPickPlacesGhostNotDraft() {
         PuzzleMode puzzle = openBudget1();
-        Presentation presentation = new Presentation(puzzle);
-        FakeInput input = new FakeInput();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+        FakeThin3D thin3d = services.thin3d();
 
-        tap(input, presentation, Presentation.trayForwardCenterX(), Presentation.trayCenterY());
-        int cellX = (int) (Presentation.GRID_LEFT + Presentation.CELL / 2);
-        int cellY = (int) (Presentation.GRID_TOP + Presentation.CELL / 2);
-        tap(input, presentation, cellX, cellY);
+        tap(input, presentation, ChromeOverlay.trayForwardCenterX(), ChromeOverlay.trayCenterY());
 
-        assertEquals(PieceType.FORWARD, puzzle.pieceAt(0, 0));
-        assertEquals(0, puzzle.remaining());
-    }
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(0), BoardPlane.cellCenterZ(0)));
+        tap(input, presentation, 100, 100);
 
-    @Test
-    void tapFilledCellRemovesMirror() {
-        PuzzleMode puzzle = openBudget1();
-        assertEquals(PlaceResult.OK, puzzle.place(1, 1, PieceType.BACK));
-        Presentation presentation = new Presentation(puzzle);
-        FakeInput input = new FakeInput();
-
-        int cellX = (int) (Presentation.GRID_LEFT + Presentation.CELL * 1.5f);
-        int cellY = (int) (Presentation.GRID_TOP + Presentation.CELL * 1.5f);
-        tap(input, presentation, cellX, cellY);
-
-        assertNull(puzzle.pieceAt(1, 1));
+        assertEquals(PieceType.FORWARD, presentation.ghostBoard().pieceAt(0, 0));
+        assertNull(puzzle.pieceAt(0, 0));
         assertEquals(1, puzzle.remaining());
+    }
+
+    @Test
+    void draftModeTrayThenPickPlacesOnDraft() {
+        PuzzleMode puzzle = openBudget1();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+        FakeThin3D thin3d = services.thin3d();
+
+        tap(input, presentation, ChromeOverlay.modeDraftCenterX(), ChromeOverlay.modeCenterY());
+        assertEquals(ChromeOverlay.EditMode.DRAFT, presentation.editMode());
+
+        tap(input, presentation, ChromeOverlay.trayBackCenterX(), ChromeOverlay.trayCenterY());
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(1), BoardPlane.cellCenterZ(1)));
+        tap(input, presentation, 120, 120);
+
+        assertEquals(PieceType.BACK, puzzle.pieceAt(1, 1));
+        assertNull(presentation.ghostBoard().pieceAt(1, 1));
     }
 
     @Test
     void enterVerifiesWhenBudgetSpent() {
         PuzzleMode puzzle = openBudget1();
         assertEquals(PlaceResult.OK, puzzle.place(2, 2, PieceType.FORWARD));
-        Presentation presentation = new Presentation(puzzle);
-        FakeInput input = new FakeInput();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
 
         input.setKeyDown(Key.ENTER, true);
         presentation.update(input, 800, 600);
@@ -98,8 +95,9 @@ class PresentationTest {
     @Test
     void enterDoesNothingWhileBudgetRemains() {
         PuzzleMode puzzle = openBudget1();
-        Presentation presentation = new Presentation(puzzle);
-        FakeInput input = new FakeInput();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
 
         input.setKeyDown(Key.ENTER, true);
         presentation.update(input, 800, 600);
@@ -107,10 +105,176 @@ class PresentationTest {
         assertNull(presentation.lastVerifyResult());
     }
 
+    @Test
+    void testFirePortStripRecordsEmissiveBoxAndTrs() {
+        PuzzleMode puzzle = openBudget1();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+        FakeThin3D thin3d = services.thin3d();
+
+        // Prime Thin3D resources (camera / emissive beam model) before clearing the command log.
+        presentation.update(input, 800, 600);
+        presentation.render(services.draw2d(), null, 800, 600);
+        assertTrue(
+                containsKind(thin3d.commands(), FakeThin3D.Command.Kind.CREATE_BOX_EMISSIVE),
+                "beam model should be createBoxEmissive");
+        thin3d.clear();
+
+        // Seed a plane hit just outside T2 (world strip); FakeThin3D ignores screen xy for the ray.
+        float margin = BoardPlane.portStripMargin(6);
+        thin3d.seedPickRay(
+                downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f));
+        tap(input, presentation, 200, 200);
+        presentation.render(services.draw2d(), null, 800, 600);
+
+        List<FakeThin3D.Command> commands = thin3d.commands();
+        assertTrue(containsKind(commands, FakeThin3D.Command.Kind.CREATE_INSTANCE));
+        assertTrue(containsKind(commands, FakeThin3D.Command.Kind.INSTANCE_TRS));
+        // Empty T2: first beam segment is rim z=0 → cell (2,0) center (half-cell), not cell-center start.
+        float entryMidZ = (0f + BoardPlane.cellCenterZ(0)) * 0.5f;
+        FakeThin3D.Command entrySeg =
+                findTrsNear(commands, BoardPlane.cellCenterX(2), entryMidZ);
+        assertNotNull(entrySeg, "expected rim→first-cell beam segment");
+        assertEquals(0f, entrySeg.eulerY, 1e-4f);
+        assertEquals(0.5f, entrySeg.scaleZ, 1e-4f);
+    }
+
+    @Test
+    void draftModeTestFireTracesDraftNotGhost() {
+        PuzzleMode puzzle = openBudget1();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+        FakeThin3D thin3d = services.thin3d();
+
+        presentation.update(input, 800, 600);
+        presentation.render(services.draw2d(), null, 800, 600);
+
+        // Ghost / at (2,0) would deflect T2; draft stays empty → straight DOWN to B2.
+        tap(input, presentation, ChromeOverlay.trayForwardCenterX(), ChromeOverlay.trayCenterY());
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), BoardPlane.cellCenterZ(0)));
+        tap(input, presentation, 100, 100);
+        assertEquals(PieceType.FORWARD, presentation.ghostBoard().pieceAt(2, 0));
+
+        tap(input, presentation, ChromeOverlay.modeDraftCenterX(), ChromeOverlay.modeCenterY());
+        assertEquals(ChromeOverlay.EditMode.DRAFT, presentation.editMode());
+
+        thin3d.clear();
+        float margin = BoardPlane.portStripMargin(6);
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f));
+        tap(input, presentation, 200, 200);
+        presentation.render(services.draw2d(), null, 800, 600);
+
+        // Empty draft: last rim segment ends at B2 (z = extent), not a side exit from the ghost /.
+        float extent = BoardPlane.boardExtent(6);
+        float exitMidZ = (BoardPlane.cellCenterZ(5) + extent) * 0.5f;
+        assertNotNull(findTrsNear(thin3d.commands(), BoardPlane.cellCenterX(2), exitMidZ));
+    }
+
+    @Test
+    void ghostPlaceAfterTestFireRetracesBeam() {
+        PuzzleMode puzzle = openBudget1();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+        FakeThin3D thin3d = services.thin3d();
+
+        presentation.update(input, 800, 600);
+        presentation.render(services.draw2d(), null, 800, 600);
+
+        float margin = BoardPlane.portStripMargin(6);
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f));
+        tap(input, presentation, 200, 200);
+
+        thin3d.clear();
+        tap(input, presentation, ChromeOverlay.trayForwardCenterX(), ChromeOverlay.trayCenterY());
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), BoardPlane.cellCenterZ(0)));
+        tap(input, presentation, 100, 100);
+        presentation.render(services.draw2d(), null, 800, 600);
+
+        assertEquals(PieceType.FORWARD, presentation.ghostBoard().pieceAt(2, 0));
+        // Sticky Test Fire re-traces: beam still recorded after ghost edit.
+        assertTrue(containsKind(thin3d.commands(), FakeThin3D.Command.Kind.INSTANCE_TRS));
+        assertNotNull(
+                findTrsNear(
+                        thin3d.commands(),
+                        BoardPlane.cellCenterX(2),
+                        (0f + BoardPlane.cellCenterZ(0)) * 0.5f));
+    }
+
+    @Test
+    void chromeLayoutTracksScreenSize() {
+        ChromeOverlay.Layout tall = ChromeOverlay.Layout.forSize(800, 900);
+        ChromeOverlay.Layout wide = ChromeOverlay.Layout.forSize(1280, 600);
+        assertTrue(tall.trayTop > ChromeOverlay.Layout.forSize(800, 600).trayTop);
+        assertTrue(wide.hudLeft > ChromeOverlay.Layout.forSize(800, 600).hudLeft);
+        assertEquals(
+                ChromeOverlay.ChromeHit.TRAY_FORWARD,
+                ChromeOverlay.hitTest(
+                        tall.trayForwardCenterX(), tall.trayCenterY(), tall.screenWidth, tall.screenHeight));
+    }
+
+    @Test
+    void promoteKeyCopiesGhostsIntoDraft() {
+        PuzzleMode puzzle = openBudget1();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+        FakeThin3D thin3d = services.thin3d();
+
+        tap(input, presentation, ChromeOverlay.trayForwardCenterX(), ChromeOverlay.trayCenterY());
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(0), BoardPlane.cellCenterZ(0)));
+        tap(input, presentation, 100, 100);
+
+        input.setKeyDown(Key.P, true);
+        presentation.update(input, 800, 600);
+
+        assertEquals(PromoteResult.Kind.OK, presentation.lastPromoteResult().kind());
+        assertEquals(PieceType.FORWARD, puzzle.pieceAt(0, 0));
+        assertEquals(PieceType.FORWARD, presentation.ghostBoard().pieceAt(0, 0));
+    }
+
+    private static Ray downwardOnto(float hitX, float hitZ) {
+        return new Ray(new Vec3(hitX, 10f, hitZ), new Vec3(0f, -1f, 0f));
+    }
+
     private static void tap(FakeInput input, Presentation presentation, int x, int y) {
         input.setPointer(x, y);
         input.setJustTouched(true);
         presentation.update(input, 800, 600);
         input.setJustTouched(false);
+    }
+
+    private static boolean containsKind(
+            List<FakeThin3D.Command> commands, FakeThin3D.Command.Kind kind) {
+        for (FakeThin3D.Command command : commands) {
+            if (command.kind == kind) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static FakeThin3D.Command firstKind(
+            List<FakeThin3D.Command> commands, FakeThin3D.Command.Kind kind) {
+        for (FakeThin3D.Command command : commands) {
+            if (command.kind == kind) {
+                return command;
+            }
+        }
+        throw new AssertionError("missing command kind " + kind);
+    }
+
+    private static FakeThin3D.Command findTrsNear(
+            List<FakeThin3D.Command> commands, float x, float z) {
+        for (FakeThin3D.Command command : commands) {
+            if (command.kind == FakeThin3D.Command.Kind.INSTANCE_TRS
+                    && Math.abs(command.x - x) < 1e-3f
+                    && Math.abs(command.z - z) < 1e-3f) {
+                return command;
+            }
+        }
+        return null;
     }
 }
