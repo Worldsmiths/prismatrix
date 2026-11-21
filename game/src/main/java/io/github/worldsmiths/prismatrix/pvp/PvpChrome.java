@@ -195,7 +195,13 @@ public final class PvpChrome {
         float line = layout.screenHeight - layout.hudTop - 16f;
         font.drawString("PvP: " + phase.name(), layout.hudLeft, line);
         line -= 26f;
-        if (inputLocked) {
+        if (phase == PvpPresentation.UiPhase.FIRE_RESULT) {
+            font.drawString("Your Fire result — tap / Enter / Space to continue", layout.hudLeft, line);
+            line -= 26f;
+        } else if (phase == PvpPresentation.UiPhase.INCOMING_FIRE) {
+            font.drawString("Incoming Fire on your board — tap / Enter / Space", layout.hudLeft, line);
+            line -= 26f;
+        } else if (inputLocked) {
             font.drawString("Input locked (AI)", layout.hudLeft, line);
             line -= 26f;
         }

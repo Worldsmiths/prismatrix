@@ -24,6 +24,8 @@ public final class PvpPresentation {
     public enum UiPhase {
         SETUP,
         OWN_TURN,
+        /** Local-only linger after human Fire (exit+color HUD); does not block a remote HvH peer. */
+        FIRE_RESULT,
         INCOMING_FIRE,
         AI_TURN,
         ENDED
@@ -44,8 +46,11 @@ public final class PvpPresentation {
     private FireObservation lastFirerHud;
     private FireObservation pendingOwnerBeam;
     private boolean aiActedThisTurn;
+    /** After human Fire: hold FIRE_RESULT until dismiss so HUD is readable before AI acts. */
+    private boolean holdFireResult;
     private boolean readyKeyWasDown;
     private boolean guessKeyWasDown;
+    private boolean continueKeyWasDown;
 
     public PvpPresentation(
             MatchKernel kernel,
@@ -85,9 +90,14 @@ public final class PvpPresentation {
         return uiPhase;
     }
 
-    /** True while AI seat is active or IncomingFire is showing (human cannot edit/fire). */
+    /**
+     * True while the human cannot place/Fire/Guess. Result overlays still accept dismiss
+     * (tap / Enter / Space).
+     */
     public boolean inputLocked() {
-        return uiPhase == UiPhase.AI_TURN || uiPhase == UiPhase.INCOMING_FIRE;
+        return uiPhase == UiPhase.AI_TURN
+                || uiPhase == UiPhase.INCOMING_FIRE
+                || uiPhase == UiPhase.FIRE_RESULT;
     }
 
     public FireObservation lastFirerHud() {
@@ -107,13 +117,17 @@ public final class PvpPresentation {
         if (kernel.phase() != MatchPhase.PLAYING || kernel.activeSeat() != humanSeat) {
             return MatchActionResult.refused("OUT_OF_TURN");
         }
+        if (holdFireResult || uiPhase == UiPhase.FIRE_RESULT || uiPhase == UiPhase.INCOMING_FIRE) {
+            return MatchActionResult.refused("RESULT_PENDING");
+        }
         MatchActionResult result = kernel.fire(humanSeat, port);
         if (result.accepted()) {
             lastFirerHud = kernel.lastFirerFire();
             boardView.clearBeam();
             pendingOwnerBeam = null;
             aiActedThisTurn = false;
-            syncPhaseFromKernel();
+            holdFireResult = true;
+            uiPhase = UiPhase.FIRE_RESULT;
         }
         return result;
     }
@@ -121,11 +135,22 @@ public final class PvpPresentation {
     public void update(Input input, int screenWidth, int screenHeight) {
         boardView.ensureSized(screenWidth, screenHeight);
         syncPhaseFromKernel();
-        if (uiPhase == UiPhase.AI_TURN) {
+        if (uiPhase == UiPhase.AI_TURN && !holdFireResult) {
             runAiTurn();
             syncPhaseFromKernel();
         }
-        if (input == null || inputLocked()) {
+        if (input == null) {
+            return;
+        }
+        // Result overlays must accept dismiss even while place/Fire/Guess are locked.
+        if (uiPhase == UiPhase.INCOMING_FIRE || uiPhase == UiPhase.FIRE_RESULT) {
+            if (input.justTouched()) {
+                dismissResultOverlay();
+            }
+            handleContinueKeys(input);
+            return;
+        }
+        if (uiPhase == UiPhase.AI_TURN) {
             return;
         }
         if (input.justTouched()) {
@@ -156,7 +181,7 @@ public final class PvpPresentation {
                 uiPhase == UiPhase.SETUP
                         && secretBoard.isCompleteClassic()
                         && !kernel.seat(humanSeat).ready();
-        // Firer HUD only when human was the firer (never show owner path as HUD beam).
+        // Firer HUD: exit+color only (never path). Sticky through FIRE_RESULT.
         FireObservation hud =
                 (lastFirerHud != null && lastFirerHud.visitedCells() == null) ? lastFirerHud : null;
         PvpChrome.render(
@@ -196,10 +221,16 @@ public final class PvpPresentation {
             uiPhase = UiPhase.ENDED;
             boardView.clearBeam();
             pendingOwnerBeam = null;
+            holdFireResult = false;
             return;
         }
         if (phase == MatchPhase.SETUP) {
             uiPhase = UiPhase.SETUP;
+            return;
+        }
+        // Local Fire-result linger wins over kernel active-seat (HvH: peer is not blocked).
+        if (holdFireResult) {
+            uiPhase = UiPhase.FIRE_RESULT;
             return;
         }
         // PLAYING
@@ -217,8 +248,26 @@ public final class PvpPresentation {
         }
     }
 
+    private void dismissResultOverlay() {
+        if (uiPhase == UiPhase.FIRE_RESULT) {
+            holdFireResult = false;
+            // Keep lastFirerHud until AI Fire / next human Fire overwrites it.
+            syncPhaseFromKernel();
+            if (uiPhase == UiPhase.AI_TURN) {
+                runAiTurn();
+                syncPhaseFromKernel();
+            }
+            return;
+        }
+        if (uiPhase == UiPhase.INCOMING_FIRE) {
+            pendingOwnerBeam = null;
+            boardView.clearBeam();
+            uiPhase = UiPhase.OWN_TURN;
+        }
+    }
+
     private void runAiTurn() {
-        if (aiActedThisTurn || kernel.activeSeat() != aiSeat) {
+        if (aiActedThisTurn || kernel.activeSeat() != aiSeat || holdFireResult) {
             return;
         }
         if (!kernel.seat(aiSeat).ready()) {
@@ -232,7 +281,7 @@ public final class PvpPresentation {
         if (action.kind() == AiAction.Kind.FIRE) {
             MatchActionResult fired = kernel.fire(aiSeat, action.port());
             if (fired.accepted()) {
-                // Owner beam for human — full path via seat-gated MatchView. Never firer HUD.
+                // Owner beam for human — full path via seat-gated MatchView. Never firer path HUD.
                 pendingOwnerBeam = kernel.viewFor(humanSeat).lastOwnerFire();
                 lastFirerHud = null;
                 aiActedThisTurn = true;
@@ -245,6 +294,17 @@ public final class PvpPresentation {
                 aiActedThisTurn = true;
             }
         }
+    }
+
+    private void handleContinueKeys(Input input) {
+        boolean cont =
+                input.isKeyDown(Key.ENTER)
+                        || input.isKeyDown(Key.SPACE)
+                        || input.isKeyDown(Key.R);
+        if (cont && !continueKeyWasDown) {
+            dismissResultOverlay();
+        }
+        continueKeyWasDown = cont;
     }
 
     private void handleKeys(Input input) {
@@ -262,13 +322,6 @@ public final class PvpPresentation {
     }
 
     private void onTap(int inputX, int inputY, int screenWidth, int screenHeight) {
-        if (uiPhase == UiPhase.INCOMING_FIRE) {
-            // Dismiss incoming beam → own turn deduction board.
-            pendingOwnerBeam = null;
-            boardView.clearBeam();
-            uiPhase = UiPhase.OWN_TURN;
-            return;
-        }
         if (uiPhase == UiPhase.SETUP) {
             PvpChrome.ChromeHit chrome = PvpChrome.hitTest(inputX, inputY, screenWidth, screenHeight);
             switch (chrome) {

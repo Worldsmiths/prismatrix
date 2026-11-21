@@ -121,6 +121,82 @@ class PvpPresentationTest {
     }
 
     @Test
+    void incomingFireTapDismissesBeamSoGameIsNotStuck() {
+        FakeEngineServices services = new FakeEngineServices();
+        Port entry = Port.of(Port.Side.T, 0, 8);
+        MatchKernel kernel = playingKernelAiFirst(classicBoard(), classicBoard());
+        AiPolicy scripted =
+                new AiPolicy() {
+                    @Override
+                    public BoardState proposeSetup(MatchRules rules, Random random) {
+                        return classicBoard();
+                    }
+
+                    @Override
+                    public AiAction decide(MatchView view, Random random) {
+                        return AiAction.fire(entry);
+                    }
+                };
+        PvpPresentation presentation =
+                new PvpPresentation(
+                        kernel, SeatId.A, SeatId.B, scripted, services.thin3d(), new Random(1));
+
+        presentation.update(services.input(), 800, 600);
+        assertTrue(presentation.uiPhase() == PvpPresentation.UiPhase.INCOMING_FIRE);
+
+        FakeInput input = services.input();
+        input.setJustTouched(true);
+        input.setPointer(400, 300);
+        presentation.update(input, 800, 600);
+
+        assertTrue(
+                presentation.uiPhase() == PvpPresentation.UiPhase.OWN_TURN,
+                "tap must dismiss incoming beam; game was stuck with input locked");
+        assertFalse(presentation.inputLocked());
+    }
+
+    @Test
+    void humanFireShowsResultBeforeOpponentTurn() {
+        FakeEngineServices services = new FakeEngineServices();
+        FakeThin3D thin3d = services.thin3d();
+        Port entry = Port.of(Port.Side.T, 0, 8);
+        MatchKernel kernel = playingKernelHumanFirst(classicBoard(), classicBoard());
+        final int[] decideCount = {0};
+        AiPolicy counting =
+                new AiPolicy() {
+                    @Override
+                    public BoardState proposeSetup(MatchRules rules, Random random) {
+                        return classicBoard();
+                    }
+
+                    @Override
+                    public AiAction decide(MatchView view, Random random) {
+                        decideCount[0]++;
+                        return AiAction.fire(Port.of(Port.Side.B, 0, 8));
+                    }
+                };
+        PvpPresentation presentation =
+                new PvpPresentation(kernel, SeatId.A, SeatId.B, counting, thin3d, new Random(1));
+
+        presentation.update(services.input(), 800, 600);
+        assertTrue(presentation.fireAsHuman(entry).accepted());
+        presentation.update(services.input(), 800, 600);
+
+        assertTrue(
+                presentation.uiPhase() == PvpPresentation.UiPhase.FIRE_RESULT,
+                "didnt even see results — human Fire must linger before AI");
+        assertNotNull(presentation.lastFirerHud());
+        assertTrue(decideCount[0] == 0, "AI must not act while Fire result is showing");
+
+        FakeInput input = services.input();
+        input.setJustTouched(true);
+        input.setPointer(400, 300);
+        presentation.update(input, 800, 600);
+
+        assertTrue(decideCount[0] >= 1 || presentation.uiPhase() != PvpPresentation.UiPhase.FIRE_RESULT);
+    }
+
+    @Test
     void aiSeatLocksHumanInput() {
         FakeEngineServices services = new FakeEngineServices();
         MatchKernel kernel = playingKernelAiFirst(classicBoard(), classicBoard());
