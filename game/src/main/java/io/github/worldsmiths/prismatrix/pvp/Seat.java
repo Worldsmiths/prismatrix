@@ -1,8 +1,12 @@
 package io.github.worldsmiths.prismatrix.pvp;
 
 import io.github.worldsmiths.prismatrix.optics.BoardState;
+import io.github.worldsmiths.prismatrix.sandbox.ObservedShot;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-/** One match seat: secret board after Ready, plus guess budget. */
+/** One match seat: secret board after Ready, firer shot log, plus guess budget. */
 public final class Seat {
 
     private final SeatId id;
@@ -10,6 +14,7 @@ public final class Seat {
     private boolean ready;
     /** Null when unlimited; otherwise remaining guesses. */
     private Integer guessesLeft;
+    private final List<ObservedShot> fireLog = new ArrayList<ObservedShot>();
 
     Seat(SeatId id, Integer initialGuesses) {
         this.id = id;
@@ -34,9 +39,32 @@ public final class Seat {
         return guessesLeft;
     }
 
+    /** Append-only firer observation log (sanitized exit+color; nullable exit). */
+    public List<ObservedShot> fireLog() {
+        return Collections.unmodifiableList(fireLog);
+    }
+
     void markReady(BoardState board) {
         this.secret = board;
         this.ready = true;
+    }
+
+    /**
+     * Test/fixture hook: swap secret after Ready (e.g. absorber null-exit board) without
+     * re-checking Classic inventory.
+     */
+    void replaceSecret(BoardState board) {
+        if (board == null) {
+            throw new IllegalArgumentException("board must not be null");
+        }
+        this.secret = board;
+    }
+
+    void appendFire(ObservedShot shot) {
+        if (shot == null) {
+            throw new IllegalArgumentException("shot must not be null");
+        }
+        fireLog.add(shot);
     }
 
     /** Decrement on miss when capped; no-op when unlimited. */
