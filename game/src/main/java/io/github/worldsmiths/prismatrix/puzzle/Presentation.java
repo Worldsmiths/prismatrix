@@ -154,13 +154,12 @@ public final class Presentation {
                 break;
         }
 
-        Port port = boardView.hitTestPortStrip(inputX, inputY);
-        if (port != null) {
-            testFire(port);
+        BoardView.Pick hit = boardView.pick(inputX, inputY);
+        if (hit.port() != null) {
+            testFire(hit.port());
             return;
         }
-
-        Cell cell = boardView.pickCell(inputX, inputY);
+        Cell cell = hit.cell();
         if (cell == null) {
             return;
         }

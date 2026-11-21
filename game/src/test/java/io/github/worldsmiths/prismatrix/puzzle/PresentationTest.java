@@ -120,9 +120,11 @@ class PresentationTest {
                 "beam model should be createBoxEmissive");
         thin3d.clear();
 
-        int stripX = BoardView.portStripCenterX(Port.Side.T, 2, 6);
-        int stripY = BoardView.portStripCenterY(Port.Side.T, 2, 6);
-        tap(input, presentation, stripX, stripY);
+        // Seed a plane hit just outside T2 (world strip); FakeThin3D ignores screen xy for the ray.
+        float margin = BoardPlane.portStripMargin(6);
+        thin3d.seedPickRay(
+                downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f));
+        tap(input, presentation, 200, 200);
         presentation.render(services.draw2d(), null, 800, 600);
 
         List<FakeThin3D.Command> commands = thin3d.commands();
