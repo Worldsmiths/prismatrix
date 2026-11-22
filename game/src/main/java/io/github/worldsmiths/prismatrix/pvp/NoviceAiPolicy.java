@@ -30,9 +30,9 @@ public final class NoviceAiPolicy implements AiPolicy {
         PlacementBoard board = PlacementBoard.classic(n);
         PieceType[] inventory =
                 new PieceType[] {
-                    PieceType.ORB_R,
-                    PieceType.ORB_G,
-                    PieceType.ORB_B,
+                    PieceType.ORB_1,
+                    PieceType.ORB_2,
+                    PieceType.ORB_3,
                     randomMirror(random),
                     randomMirror(random),
                     randomMirror(random),

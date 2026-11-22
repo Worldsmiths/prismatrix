@@ -7,6 +7,7 @@ import io.github.worldsmiths.core.Key;
 import io.github.worldsmiths.core.thin3d.Thin3D;
 import io.github.worldsmiths.prismatrix.optics.BoardState;
 import io.github.worldsmiths.prismatrix.optics.Cell;
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
 import io.github.worldsmiths.prismatrix.optics.TraceCore;
@@ -22,8 +23,9 @@ import java.util.Random;
 /**
  * Pitched PvP vs AI facade: one {@link BoardView} phase-switched between deduction (own turn) and
  * own secret + owner beam (IncomingFire). Firer HUD is exit+color only — never feeds opponent
- * {@code visitedCells} into BoardView on real Fire. Own-turn port taps practice-Trace the guess
- * board only. AI seat locks human place/Fire/Guess.
+ * {@code visitedCells} into BoardView on real Fire. Setup and own-turn port taps practice-Trace
+ * the board currently being edited (secret / guess); same-port tap clears the practice beam. AI
+ * seat locks human place/Fire/Guess.
  */
 public final class PvpPresentation {
 
@@ -46,6 +48,7 @@ public final class PvpPresentation {
 
     private final PlacementBoard secretBoard;
     private final PlacementBoard deductionBoard;
+    private final OrbColorPalette colorPalette;
 
     private UiPhase uiPhase = UiPhase.SETUP;
     private PieceType selected;
@@ -90,8 +93,14 @@ public final class PvpPresentation {
         int n = kernel.rules().gridSize();
         this.secretBoard = PlacementBoard.classic(n);
         this.deductionBoard = PlacementBoard.classic(n);
+        this.colorPalette = kernel.rules().orbColorPalette();
         this.boardView = new BoardView(thin3d, n);
+        this.boardView.setColorPalette(colorPalette);
         syncPhaseFromKernel();
+    }
+
+    public OrbColorPalette colorPalette() {
+        return colorPalette;
     }
 
     public UiPhase uiPhase() {
@@ -124,13 +133,28 @@ public final class PvpPresentation {
         return selectedPort;
     }
 
-    /** Practice Trace on the guess board only (not opponent secret; not a match Fire). */
+    /**
+     * Practice Trace on the board currently being edited (secret in Setup, guess on OwnTurn). Not
+     * a match Fire. Tapping the same port again clears the practice beam.
+     */
     public void practicePort(Port port) {
-        if (uiPhase != UiPhase.OWN_TURN || port == null) {
+        if (port == null || (uiPhase != UiPhase.OWN_TURN && uiPhase != UiPhase.SETUP)) {
+            return;
+        }
+        if (port.equals(selectedPort) && practiceTrace != null) {
+            clearPractice();
             return;
         }
         selectedPort = port;
-        practiceTrace = TraceCore.trace(deductionBoard.toBoardState(), port);
+        PlacementBoard board = uiPhase == UiPhase.SETUP ? secretBoard : deductionBoard;
+        practiceTrace = TraceCore.trace(board.toBoardState(), port);
+    }
+
+    /** Clears practice port highlight and beam (Setup / OwnTurn local preview only). */
+    public void clearPractice() {
+        selectedPort = null;
+        practiceTrace = null;
+        boardView.clearBeam();
     }
 
     /** Human Fire verb — HUD only; never pushes opponent path into BoardView. */
@@ -205,7 +229,9 @@ public final class PvpPresentation {
                     lastFirerHud.exitPort(),
                     lastFirerHud.colorMask());
             highlight = lastFirerHud.entryPort();
-        } else if (uiPhase == UiPhase.OWN_TURN && practiceTrace != null && selectedPort != null) {
+        } else if ((uiPhase == UiPhase.OWN_TURN || uiPhase == UiPhase.SETUP)
+                && practiceTrace != null
+                && selectedPort != null) {
             boardView.clearBeam();
             boardView.setBeamPath(
                     selectedPort, practiceTrace.visitedCells(), practiceTrace.exitPort());
@@ -231,6 +257,8 @@ public final class PvpPresentation {
                 kernel.phase() == MatchPhase.SETUP
                         ? Collections.<ObservedShot>emptyList()
                         : kernel.viewFor(humanSeat).fireLog();
+        Integer practiceColor =
+                practiceTrace != null ? Integer.valueOf(practiceTrace.colorMask()) : null;
         PvpChrome.render(
                 draw2d,
                 font,
@@ -242,10 +270,12 @@ public final class PvpPresentation {
                 hud,
                 log,
                 selectedPort,
+                practiceColor,
                 inputLocked(),
                 canReady,
                 canFire,
-                canGuess);
+                canGuess,
+                colorPalette);
     }
 
     public void dispose() {
@@ -377,14 +407,14 @@ public final class PvpPresentation {
         if (uiPhase == UiPhase.SETUP) {
             PvpChrome.ChromeHit chrome = PvpChrome.hitTest(inputX, inputY, screenWidth, screenHeight);
             switch (chrome) {
-                case TRAY_ORB_R:
-                    selected = PieceType.ORB_R;
+                case TRAY_ORB_1:
+                    selected = PieceType.ORB_1;
                     return;
-                case TRAY_ORB_G:
-                    selected = PieceType.ORB_G;
+                case TRAY_ORB_2:
+                    selected = PieceType.ORB_2;
                     return;
-                case TRAY_ORB_B:
-                    selected = PieceType.ORB_B;
+                case TRAY_ORB_3:
+                    selected = PieceType.ORB_3;
                     return;
                 case TRAY_FORWARD:
                     selected = PieceType.FORWARD;
@@ -400,8 +430,15 @@ public final class PvpPresentation {
                     break;
             }
             BoardView.Pick hit = boardView.pick(inputX, inputY);
+            if (hit.port() != null) {
+                practicePort(hit.port());
+                return;
+            }
             if (hit.cell() != null) {
                 placeOrRemove(secretBoard, hit.cell());
+                if (selectedPort != null) {
+                    refreshPractice();
+                }
             }
             return;
         }
@@ -410,14 +447,14 @@ public final class PvpPresentation {
         }
         PvpChrome.ChromeHit chrome = PvpChrome.hitTest(inputX, inputY, screenWidth, screenHeight);
         switch (chrome) {
-            case TRAY_ORB_R:
-                selected = PieceType.ORB_R;
+            case TRAY_ORB_1:
+                selected = PieceType.ORB_1;
                 return;
-            case TRAY_ORB_G:
-                selected = PieceType.ORB_G;
+            case TRAY_ORB_2:
+                selected = PieceType.ORB_2;
                 return;
-            case TRAY_ORB_B:
-                selected = PieceType.ORB_B;
+            case TRAY_ORB_3:
+                selected = PieceType.ORB_3;
                 return;
             case TRAY_FORWARD:
                 selected = PieceType.FORWARD;
@@ -445,11 +482,20 @@ public final class PvpPresentation {
         }
         if (hit.cell() != null) {
             placeOrRemove(deductionBoard, hit.cell());
-            // Placement changed — refresh practice beam if a port is selected.
             if (selectedPort != null) {
-                practicePort(selectedPort);
+                refreshPractice();
             }
         }
+    }
+
+    /** Re-trace the selected practice port after placement edits (does not toggle clear). */
+    private void refreshPractice() {
+        if (selectedPort == null
+                || (uiPhase != UiPhase.OWN_TURN && uiPhase != UiPhase.SETUP)) {
+            return;
+        }
+        PlacementBoard board = uiPhase == UiPhase.SETUP ? secretBoard : deductionBoard;
+        practiceTrace = TraceCore.trace(board.toBoardState(), selectedPort);
     }
 
     private void placeOrRemove(PlacementBoard board, Cell cell) {
@@ -474,6 +520,7 @@ public final class PvpPresentation {
             BoardState aiSetup = ai.proposeSetup(kernel.rules(), random);
             kernel.ready(aiSeat, aiSetup);
         }
+        clearPractice();
         aiActedThisTurn = false;
         syncPhaseFromKernel();
     }

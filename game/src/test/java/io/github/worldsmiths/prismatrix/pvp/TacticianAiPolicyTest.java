@@ -110,12 +110,12 @@ class TacticianAiPolicyTest {
 
     @Test
     void observationAwareFirePrefersPortWhereHypothesesDisagree() {
-        // Column 0: A empty → straight exit; B has ORB_R → color differs. Column 1 empty on both.
+        // Column 0: A empty → straight exit; B has ORB_1 → color differs. Column 1 empty on both.
         BoardState agreeCol1 =
                 BoardState.builder(8)
-                        .place(2, 0, PieceType.ORB_R)
-                        .place(3, 0, PieceType.ORB_G)
-                        .place(4, 0, PieceType.ORB_B)
+                        .place(2, 0, PieceType.ORB_1)
+                        .place(3, 0, PieceType.ORB_2)
+                        .place(4, 0, PieceType.ORB_3)
                         .place(5, 0, PieceType.FORWARD)
                         .place(6, 0, PieceType.FORWARD)
                         .place(5, 1, PieceType.BACK)
@@ -123,9 +123,9 @@ class TacticianAiPolicyTest {
                         .build();
         BoardState orbOnCol0 =
                 BoardState.builder(8)
-                        .place(0, 1, PieceType.ORB_R)
-                        .place(3, 0, PieceType.ORB_G)
-                        .place(4, 0, PieceType.ORB_B)
+                        .place(0, 1, PieceType.ORB_1)
+                        .place(3, 0, PieceType.ORB_2)
+                        .place(4, 0, PieceType.ORB_3)
                         .place(5, 0, PieceType.FORWARD)
                         .place(6, 0, PieceType.FORWARD)
                         .place(5, 1, PieceType.BACK)
@@ -207,9 +207,9 @@ class TacticianAiPolicyTest {
 
     private static BoardState classicBoard() {
         return BoardState.builder(8)
-                .place(0, 0, PieceType.ORB_R)
-                .place(1, 0, PieceType.ORB_G)
-                .place(2, 0, PieceType.ORB_B)
+                .place(0, 0, PieceType.ORB_1)
+                .place(1, 0, PieceType.ORB_2)
+                .place(2, 0, PieceType.ORB_3)
                 .place(3, 0, PieceType.FORWARD)
                 .place(4, 0, PieceType.FORWARD)
                 .place(5, 0, PieceType.BACK)

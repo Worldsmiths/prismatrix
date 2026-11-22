@@ -1,10 +1,12 @@
 package io.github.worldsmiths.prismatrix.pvp;
 
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
+
 /**
  * Locked Classic match configuration.
  *
  * <p>{@code maxGuesses == null} means unlimited. Null or {@code 0} setup/match seconds means
- * untimed.
+ * untimed. Orb presentation uses {@link OrbColorPalette} (default Red/Yellow/Blue).
  */
 public final class MatchRules {
 
@@ -13,23 +15,26 @@ public final class MatchRules {
     private final Integer maxGuesses;
     private final Integer setupSeconds;
     private final Integer matchSeconds;
+    private final OrbColorPalette.Id orbColors;
 
     private MatchRules(
             int gridSize,
             boolean guessMirrors,
             Integer maxGuesses,
             Integer setupSeconds,
-            Integer matchSeconds) {
+            Integer matchSeconds,
+            OrbColorPalette.Id orbColors) {
         this.gridSize = gridSize;
         this.guessMirrors = guessMirrors;
         this.maxGuesses = maxGuesses;
         this.setupSeconds = setupSeconds;
         this.matchSeconds = matchSeconds;
+        this.orbColors = orbColors == null ? OrbColorPalette.Id.RED_YELLOW_BLUE : orbColors;
     }
 
-    /** Classic defaults: 8×8, Orbs Only, unlimited guesses, untimed. */
+    /** Classic defaults: 8×8, Orbs Only, unlimited guesses, untimed, RYB colors. */
     public static MatchRules classic() {
-        return new MatchRules(8, false, null, null, null);
+        return new MatchRules(8, false, null, null, null, OrbColorPalette.Id.RED_YELLOW_BLUE);
     }
 
     public static Builder builder() {
@@ -59,6 +64,15 @@ public final class MatchRules {
         return matchSeconds;
     }
 
+    /** Presentation palette for orb/beam/exit colors. */
+    public OrbColorPalette.Id orbColors() {
+        return orbColors;
+    }
+
+    public OrbColorPalette orbColorPalette() {
+        return OrbColorPalette.of(orbColors);
+    }
+
     public boolean timedSetup() {
         return setupSeconds != null && setupSeconds > 0;
     }
@@ -73,6 +87,7 @@ public final class MatchRules {
         private Integer maxGuesses;
         private Integer setupSeconds;
         private Integer matchSeconds;
+        private OrbColorPalette.Id orbColors = OrbColorPalette.Id.RED_YELLOW_BLUE;
 
         public Builder gridSize(int gridSize) {
             this.gridSize = gridSize;
@@ -99,8 +114,14 @@ public final class MatchRules {
             return this;
         }
 
+        public Builder orbColors(OrbColorPalette.Id orbColors) {
+            this.orbColors = orbColors;
+            return this;
+        }
+
         public MatchRules build() {
-            return new MatchRules(gridSize, guessMirrors, maxGuesses, setupSeconds, matchSeconds);
+            return new MatchRules(
+                    gridSize, guessMirrors, maxGuesses, setupSeconds, matchSeconds, orbColors);
         }
     }
 }

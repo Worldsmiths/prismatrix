@@ -3,7 +3,7 @@ package io.github.worldsmiths.prismatrix.pvp;
 import io.github.worldsmiths.core.Draw2D;
 import io.github.worldsmiths.core.DrawMode;
 import io.github.worldsmiths.core.Font;
-import io.github.worldsmiths.prismatrix.optics.BeamColor;
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
 import io.github.worldsmiths.prismatrix.puzzle.PlacementBoard;
@@ -18,9 +18,9 @@ import java.util.List;
 public final class PvpChrome {
 
     public enum ChromeHit {
-        TRAY_ORB_R,
-        TRAY_ORB_G,
-        TRAY_ORB_B,
+        TRAY_ORB_1,
+        TRAY_ORB_2,
+        TRAY_ORB_3,
         TRAY_FORWARD,
         TRAY_BACK,
         READY,
@@ -104,16 +104,20 @@ public final class PvpChrome {
             return (int) (trayTop + TRAY_BTN / 2f);
         }
 
-        public int trayOrbRCenterX() {
-            return (int) (traySlotLeft(0) + TRAY_BTN / 2f);
+        public int trayOrbCenterX(int channel) {
+            return (int) (traySlotLeft(channel) + TRAY_BTN / 2f);
         }
 
-        public int trayOrbGCenterX() {
-            return (int) (traySlotLeft(1) + TRAY_BTN / 2f);
+        public int trayOrb1CenterX() {
+            return trayOrbCenterX(0);
         }
 
-        public int trayOrbBCenterX() {
-            return (int) (traySlotLeft(2) + TRAY_BTN / 2f);
+        public int trayOrb2CenterX() {
+            return trayOrbCenterX(1);
+        }
+
+        public int trayOrb3CenterX() {
+            return trayOrbCenterX(2);
         }
 
         public int trayForwardCenterX() {
@@ -158,13 +162,13 @@ public final class PvpChrome {
             return ChromeHit.GUESS;
         }
         if (inRect(inputX, inputY, layout.traySlotLeft(0), layout.trayTop, TRAY_BTN, TRAY_BTN)) {
-            return ChromeHit.TRAY_ORB_R;
+            return ChromeHit.TRAY_ORB_1;
         }
         if (inRect(inputX, inputY, layout.traySlotLeft(1), layout.trayTop, TRAY_BTN, TRAY_BTN)) {
-            return ChromeHit.TRAY_ORB_G;
+            return ChromeHit.TRAY_ORB_2;
         }
         if (inRect(inputX, inputY, layout.traySlotLeft(2), layout.trayTop, TRAY_BTN, TRAY_BTN)) {
-            return ChromeHit.TRAY_ORB_B;
+            return ChromeHit.TRAY_ORB_3;
         }
         if (inRect(inputX, inputY, layout.traySlotLeft(3), layout.trayTop, TRAY_BTN, TRAY_BTN)) {
             return ChromeHit.TRAY_FORWARD;
@@ -189,17 +193,21 @@ public final class PvpChrome {
             FireObservation firerHud,
             List<ObservedShot> fireLog,
             Port practicePort,
+            Integer practiceColorMask,
             boolean inputLocked,
             boolean canReady,
             boolean canFire,
-            boolean canGuess) {
+            boolean canGuess,
+            OrbColorPalette palette) {
         if (draw2d == null) {
             return;
         }
+        OrbColorPalette colors =
+                palette == null ? OrbColorPalette.defaultPalette() : palette;
         Layout layout = Layout.forSize(screenWidth, screenHeight);
         draw2d.setOrtho2D(0f, 0f, layout.screenWidth, layout.screenHeight);
         if (phase == PvpPresentation.UiPhase.SETUP || phase == PvpPresentation.UiPhase.OWN_TURN) {
-            drawTray(draw2d, layout, selected);
+            drawTray(draw2d, layout, selected, colors);
         }
         if (phase == PvpPresentation.UiPhase.SETUP) {
             drawReady(draw2d, layout, canReady);
@@ -218,17 +226,23 @@ public final class PvpChrome {
                     firerHud,
                     fireLog,
                     practicePort,
+                    practiceColorMask,
                     inputLocked,
                     canFire,
-                    canGuess);
+                    canGuess,
+                    colors);
         }
     }
 
-    private static void drawTray(Draw2D g, Layout layout, PieceType selected) {
+    private static void drawTray(
+            Draw2D g, Layout layout, PieceType selected, OrbColorPalette palette) {
         float trayDrawY = layout.screenHeight - layout.trayTop - TRAY_BTN;
-        drawOrbSlot(g, layout.traySlotLeft(0), trayDrawY, selected == PieceType.ORB_R, 0.9f, 0.25f, 0.25f);
-        drawOrbSlot(g, layout.traySlotLeft(1), trayDrawY, selected == PieceType.ORB_G, 0.25f, 0.85f, 0.3f);
-        drawOrbSlot(g, layout.traySlotLeft(2), trayDrawY, selected == PieceType.ORB_B, 0.3f, 0.5f, 0.95f);
+        for (int ch = 0; ch < 3; ch++) {
+            PieceType orb = PieceType.orb(ch);
+            float[] c = palette.rgbaForPiece(orb);
+            drawOrbSlot(
+                    g, layout.traySlotLeft(ch), trayDrawY, selected == orb, c[0], c[1], c[2]);
+        }
         g.begin(DrawMode.LINE);
         drawTraySlotBorder(
                 g, layout.traySlotLeft(3), trayDrawY, selected == PieceType.FORWARD, 0.95f, 0.85f, 0.35f);
@@ -309,11 +323,13 @@ public final class PvpChrome {
             FireObservation firerHud,
             List<ObservedShot> fireLog,
             Port practicePort,
+            Integer practiceColorMask,
             boolean inputLocked,
             boolean canFire,
-            boolean canGuess) {
+            boolean canGuess,
+            OrbColorPalette palette) {
         float line = layout.screenHeight - layout.hudTop - 18f * UI_SCALE;
-        drawText(font, "PvP: " + phase.name(), layout.hudLeft, line);
+        drawText(font, "PvP: " + phase.name() + "  " + palette.shortLabel(), layout.hudLeft, line);
         line -= LINE_STEP;
         if (phase == PvpPresentation.UiPhase.FIRE_RESULT) {
             drawText(font, "Your Fire — tap / Enter / Space", layout.hudLeft, line);
@@ -335,6 +351,13 @@ public final class PvpChrome {
                     layout.hudLeft,
                     line);
             line -= LINE_STEP;
+            drawText(font, "Port tap = try beam (tap again to clear)", layout.hudLeft, line);
+            line -= LINE_STEP;
+            if (practicePort != null) {
+                drawText(font, "Practice port: " + practicePort, layout.hudLeft, line);
+                line -= LINE_STEP;
+                line = drawPracticeColor(font, draw2d, layout, line, practiceColorMask, palette);
+            }
         }
         if (phase == PvpPresentation.UiPhase.OWN_TURN) {
             drawText(font, "Port tap = practice on guess board", layout.hudLeft, line);
@@ -342,6 +365,7 @@ public final class PvpChrome {
             if (practicePort != null) {
                 drawText(font, "Practice port: " + practicePort, layout.hudLeft, line);
                 line -= LINE_STEP;
+                line = drawPracticeColor(font, draw2d, layout, line, practiceColorMask, palette);
             }
             drawText(
                     font,
@@ -365,7 +389,7 @@ public final class PvpChrome {
         if (firerHud != null) {
             Port exit = firerHud.exitPort();
             String exitLabel = exit == null ? "ABSORB" : exit.toString();
-            String colorName = BeamColor.label(firerHud.colorMask());
+            String colorName = palette.label(firerHud.colorMask());
             drawText(
                     font,
                     "Fire: " + firerHud.entryPort() + " -> " + exitLabel + "  " + colorName,
@@ -376,7 +400,8 @@ public final class PvpChrome {
                     layout.hudLeft - 22f * UI_SCALE,
                     line - 4f,
                     16f * UI_SCALE,
-                    firerHud.colorMask());
+                    firerHud.colorMask(),
+                    palette);
             line -= LINE_STEP;
             if (phase == PvpPresentation.UiPhase.FIRE_RESULT) {
                 drawText(font, "Ports: entry white, exit " + colorName, layout.hudLeft, line);
@@ -392,7 +417,7 @@ public final class PvpChrome {
                 ObservedShot shot = log.get(i);
                 Port exit = shot.exitPort();
                 String exitLabel = exit == null ? "ABSORB" : exit.toString();
-                String colorName = BeamColor.label(shot.colorMask());
+                String colorName = palette.label(shot.colorMask());
                 drawText(
                         font,
                         (i + 1)
@@ -409,17 +434,42 @@ public final class PvpChrome {
                         layout.hudLeft - 22f * UI_SCALE,
                         line - 4f,
                         14f * UI_SCALE,
-                        shot.colorMask());
+                        shot.colorMask(),
+                        palette);
                 line -= LINE_STEP * 0.9f;
             }
         }
     }
 
-    private static void drawColorSwatch(Draw2D g, float left, float bottom, float size, int mask) {
+    private static float drawPracticeColor(
+            Font font,
+            Draw2D draw2d,
+            Layout layout,
+            float line,
+            Integer practiceColorMask,
+            OrbColorPalette palette) {
+        if (practiceColorMask == null) {
+            return line;
+        }
+        int mask = practiceColorMask.intValue();
+        String name = palette.label(mask);
+        drawText(font, "Practice color: " + name, layout.hudLeft, line);
+        drawColorSwatch(
+                draw2d,
+                layout.hudLeft - 22f * UI_SCALE,
+                line - 4f,
+                16f * UI_SCALE,
+                mask,
+                palette);
+        return line - LINE_STEP;
+    }
+
+    private static void drawColorSwatch(
+            Draw2D g, float left, float bottom, float size, int mask, OrbColorPalette palette) {
         if (g == null) {
             return;
         }
-        float[] c = BeamColor.rgba(mask);
+        float[] c = palette.rgba(mask);
         g.begin(DrawMode.FILLED);
         g.setColor(c[0], c[1], c[2], 1f);
         g.rect(left, bottom, size, size);

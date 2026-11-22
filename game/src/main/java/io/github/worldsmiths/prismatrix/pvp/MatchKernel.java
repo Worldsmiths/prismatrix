@@ -315,7 +315,7 @@ public final class MatchKernel {
     }
 
     private static boolean isOrb(PieceType piece) {
-        return piece == PieceType.ORB_R || piece == PieceType.ORB_G || piece == PieceType.ORB_B;
+        return piece != null && piece.isOrb();
     }
 
     static boolean hasClassicInventory(BoardState board) {
@@ -329,9 +329,9 @@ public final class MatchKernel {
                     continue;
                 }
                 switch (piece) {
-                    case ORB_R:
-                    case ORB_G:
-                    case ORB_B:
+                    case ORB_1:
+                    case ORB_2:
+                    case ORB_3:
                         orbs++;
                         break;
                     case FORWARD:

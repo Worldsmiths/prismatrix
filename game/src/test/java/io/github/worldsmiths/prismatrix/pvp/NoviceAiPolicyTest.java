@@ -121,9 +121,9 @@ class NoviceAiPolicyTest {
 
     private static BoardState classicBoard() {
         return BoardState.builder(8)
-                .place(0, 0, PieceType.ORB_R)
-                .place(1, 0, PieceType.ORB_G)
-                .place(2, 0, PieceType.ORB_B)
+                .place(0, 0, PieceType.ORB_1)
+                .place(1, 0, PieceType.ORB_2)
+                .place(2, 0, PieceType.ORB_3)
                 .place(3, 0, PieceType.FORWARD)
                 .place(4, 0, PieceType.FORWARD)
                 .place(5, 0, PieceType.BACK)

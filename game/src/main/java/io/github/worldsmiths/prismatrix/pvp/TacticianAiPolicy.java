@@ -138,9 +138,7 @@ public final class TacticianAiPolicy implements AiPolicy {
         for (int y = 0; y < n; y++) {
             for (int x = 0; x < n; x++) {
                 PieceType piece = board.pieceAt(x, y);
-                if (piece == PieceType.ORB_R
-                        || piece == PieceType.ORB_G
-                        || piece == PieceType.ORB_B) {
+                if (piece != null && piece.isOrb()) {
                     sb.append(piece.name()).append('@').append(x).append(',').append(y).append(';');
                 }
             }

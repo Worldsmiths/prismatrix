@@ -12,6 +12,6 @@ class BoardStateTest {
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> builder.place(1, 1, PieceType.ORB_R));
+                () -> builder.place(1, 1, PieceType.ORB_1));
     }
 }

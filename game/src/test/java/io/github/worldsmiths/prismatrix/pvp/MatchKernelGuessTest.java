@@ -137,9 +137,9 @@ class MatchKernelGuessTest {
         MatchKernel kernel = playingKernelAFirst(MatchRules.classic());
         BoardState incomplete =
                 BoardState.builder(8)
-                        .place(0, 1, PieceType.ORB_R)
-                        .place(1, 1, PieceType.ORB_G)
-                        .place(2, 1, PieceType.ORB_B)
+                        .place(0, 1, PieceType.ORB_1)
+                        .place(1, 1, PieceType.ORB_2)
+                        .place(2, 1, PieceType.ORB_3)
                         .build();
 
         MatchActionResult result = kernel.guess(SeatId.A, incomplete);
@@ -169,9 +169,9 @@ class MatchKernelGuessTest {
     /** Seat A secret — distinct from B so correct Guess must match the opponent. */
     private static BoardState classicBoardA() {
         return BoardState.builder(8)
-                .place(0, 0, PieceType.ORB_R)
-                .place(1, 0, PieceType.ORB_G)
-                .place(2, 0, PieceType.ORB_B)
+                .place(0, 0, PieceType.ORB_1)
+                .place(1, 0, PieceType.ORB_2)
+                .place(2, 0, PieceType.ORB_3)
                 .place(3, 0, PieceType.FORWARD)
                 .place(4, 0, PieceType.FORWARD)
                 .place(5, 0, PieceType.BACK)
@@ -182,9 +182,9 @@ class MatchKernelGuessTest {
     /** Seat B secret — different orb layout. */
     private static BoardState classicBoardB() {
         return BoardState.builder(8)
-                .place(0, 1, PieceType.ORB_R)
-                .place(1, 1, PieceType.ORB_G)
-                .place(2, 1, PieceType.ORB_B)
+                .place(0, 1, PieceType.ORB_1)
+                .place(1, 1, PieceType.ORB_2)
+                .place(2, 1, PieceType.ORB_3)
                 .place(3, 1, PieceType.FORWARD)
                 .place(4, 1, PieceType.FORWARD)
                 .place(5, 1, PieceType.BACK)
@@ -195,9 +195,9 @@ class MatchKernelGuessTest {
     /** Same orbs as B secret; mirrors flipped — Orbs Only should still win. */
     private static BoardState classicBoardBWithDifferentMirrors() {
         return BoardState.builder(8)
-                .place(0, 1, PieceType.ORB_R)
-                .place(1, 1, PieceType.ORB_G)
-                .place(2, 1, PieceType.ORB_B)
+                .place(0, 1, PieceType.ORB_1)
+                .place(1, 1, PieceType.ORB_2)
+                .place(2, 1, PieceType.ORB_3)
                 .place(3, 1, PieceType.BACK)
                 .place(4, 1, PieceType.BACK)
                 .place(5, 1, PieceType.FORWARD)

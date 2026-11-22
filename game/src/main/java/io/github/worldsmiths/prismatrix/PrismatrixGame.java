@@ -10,6 +10,7 @@ import io.github.worldsmiths.core.WorldsmithsGame;
 import io.github.worldsmiths.prismatrix.puzzle.LevelLoadException;
 import io.github.worldsmiths.prismatrix.puzzle.Presentation;
 import io.github.worldsmiths.prismatrix.puzzle.PuzzleMode;
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import io.github.worldsmiths.prismatrix.pvp.MatchKernel;
 import io.github.worldsmiths.prismatrix.pvp.MatchRules;
 import io.github.worldsmiths.prismatrix.pvp.NoviceAiPolicy;
@@ -46,6 +47,9 @@ public final class PrismatrixGame implements WorldsmithsGame {
     private boolean twoKeyWasDown;
     private boolean threeKeyWasDown;
     private boolean escapeKeyWasDown;
+    private boolean cKeyWasDown;
+    /** Menu-selected orb palette for the next PvP match (default RYB easy). */
+    private OrbColorPalette.Id menuOrbColors = OrbColorPalette.Id.RED_YELLOW_BLUE;
 
     @Override
     public Scene createScene() {
@@ -135,6 +139,15 @@ public final class PrismatrixGame implements WorldsmithsGame {
             playMode = PlayMode.MENU;
         }
         escapeKeyWasDown = esc;
+
+        boolean c = input.isKeyDown(Key.C);
+        if (c && !cKeyWasDown && playMode == PlayMode.MENU) {
+            menuOrbColors =
+                    menuOrbColors == OrbColorPalette.Id.RED_YELLOW_BLUE
+                            ? OrbColorPalette.Id.RED_GREEN_BLUE
+                            : OrbColorPalette.Id.RED_YELLOW_BLUE;
+        }
+        cKeyWasDown = c;
     }
 
     private void enterPuzzle() {
@@ -150,7 +163,8 @@ public final class PrismatrixGame implements WorldsmithsGame {
 
     private void enterPvp(boolean tactician) {
         disposeActiveMode();
-        pvpKernel = new MatchKernel(MatchRules.classic(), new Random());
+        MatchRules rules = MatchRules.builder().orbColors(menuOrbColors).build();
+        pvpKernel = new MatchKernel(rules, new Random());
         pvpPresentation =
                 new PvpPresentation(
                         pvpKernel,
@@ -188,6 +202,9 @@ public final class PrismatrixGame implements WorldsmithsGame {
         font.drawString("2 — PvP vs AI (Novice)", 40f, y);
         y -= 32f;
         font.drawString("3 — PvP vs AI (Tactician)", 40f, y);
+        y -= 32f;
+        font.drawString(
+                "C — colors: " + OrbColorPalette.of(menuOrbColors).shortLabel(), 40f, y);
         y -= 32f;
         font.drawString("Esc — menu", 40f, y);
     }

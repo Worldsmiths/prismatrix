@@ -90,9 +90,9 @@ class OpticsGoldenTest {
     void orbMix_exitColorMaskIsBitwiseOr() {
         BoardState board =
                 BoardState.builder(3)
-                        .place(1, 0, PieceType.ORB_R)
-                        .place(1, 1, PieceType.ORB_G)
-                        .place(1, 2, PieceType.ORB_B)
+                        .place(1, 0, PieceType.ORB_1)
+                        .place(1, 1, PieceType.ORB_2)
+                        .place(1, 2, PieceType.ORB_3)
                         .build();
         Port entry = Port.of(Port.Side.T, 1, 3);
 
@@ -102,7 +102,7 @@ class OpticsGoldenTest {
         assertEquals(Port.Side.B, result.exitPort().side());
         assertEquals(1, result.exitPort().index());
         assertEquals(
-                PieceType.COLOR_R | PieceType.COLOR_G | PieceType.COLOR_B, result.colorMask());
+                PieceType.COLOR_1 | PieceType.COLOR_2 | PieceType.COLOR_3, result.colorMask());
         assertEquals(0, result.totalBounces());
     }
 

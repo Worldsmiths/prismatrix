@@ -14,20 +14,20 @@ class PlacementBoardTest {
     void classicPlaceOrbSucceedsAndDecreasesThatOrbRemaining() {
         PlacementBoard board = PlacementBoard.classic(8);
 
-        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_R));
-        assertEquals(0, board.remainingOrb(PieceType.ORB_R));
-        assertEquals(1, board.remainingOrb(PieceType.ORB_G));
-        assertEquals(1, board.remainingOrb(PieceType.ORB_B));
-        assertEquals(PieceType.ORB_R, board.pieceAt(0, 0));
+        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_1));
+        assertEquals(0, board.remainingOrb(PieceType.ORB_1));
+        assertEquals(1, board.remainingOrb(PieceType.ORB_2));
+        assertEquals(1, board.remainingOrb(PieceType.ORB_3));
+        assertEquals(PieceType.ORB_1, board.pieceAt(0, 0));
     }
 
     @Test
     void classicPlacesExactlyThreeOrbsAndFourOrientationChosenMirrors() {
         PlacementBoard board = PlacementBoard.classic(8);
 
-        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_R));
-        assertEquals(PlaceResult.OK, board.place(1, 0, PieceType.ORB_G));
-        assertEquals(PlaceResult.OK, board.place(2, 0, PieceType.ORB_B));
+        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_1));
+        assertEquals(PlaceResult.OK, board.place(1, 0, PieceType.ORB_2));
+        assertEquals(PlaceResult.OK, board.place(2, 0, PieceType.ORB_3));
         assertEquals(PlaceResult.OK, board.place(0, 1, PieceType.FORWARD));
         assertEquals(PlaceResult.OK, board.place(1, 1, PieceType.BACK));
         assertEquals(PlaceResult.OK, board.place(2, 1, PieceType.FORWARD));
@@ -42,10 +42,10 @@ class PlacementBoardTest {
     @Test
     void refusesOverBudgetOrbOfSameColor() {
         PlacementBoard board = PlacementBoard.classic(8);
-        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_R));
+        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_1));
 
-        assertEquals(PlaceResult.OVER_BUDGET, board.place(1, 0, PieceType.ORB_R));
-        assertEquals(0, board.remainingOrb(PieceType.ORB_R));
+        assertEquals(PlaceResult.OVER_BUDGET, board.place(1, 0, PieceType.ORB_1));
+        assertEquals(0, board.remainingOrb(PieceType.ORB_1));
         assertEquals(null, board.pieceAt(1, 0));
     }
 
@@ -74,7 +74,7 @@ class PlacementBoardTest {
     void mirrorsOnlyRejectsOrbsAsInvalidType() {
         PlacementBoard board = PlacementBoard.mirrorsOnly(6, 3);
 
-        assertEquals(PlaceResult.INVALID_TYPE, board.place(0, 0, PieceType.ORB_R));
+        assertEquals(PlaceResult.INVALID_TYPE, board.place(0, 0, PieceType.ORB_1));
         assertEquals(PlaceResult.OK, board.place(1, 0, PieceType.FORWARD));
         assertEquals(2, board.remainingMirrors());
         assertFalse(board.isCompleteClassic());
@@ -83,38 +83,38 @@ class PlacementBoardTest {
     @Test
     void removeRestoresOrbAndMirrorInventory() {
         PlacementBoard board = PlacementBoard.classic(8);
-        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_G));
+        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_2));
         assertEquals(PlaceResult.OK, board.place(1, 0, PieceType.BACK));
 
         assertTrue(board.remove(0, 0));
         assertTrue(board.remove(1, 0));
 
-        assertEquals(1, board.remainingOrb(PieceType.ORB_G));
+        assertEquals(1, board.remainingOrb(PieceType.ORB_2));
         assertEquals(4, board.remainingMirrors());
-        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_G));
+        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_2));
         assertEquals(PlaceResult.OK, board.place(1, 0, PieceType.FORWARD));
     }
 
     @Test
     void rejectsOccupiedAndOutOfBounds() {
         PlacementBoard board = PlacementBoard.classic(4);
-        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_R));
+        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_1));
 
         assertEquals(PlaceResult.OCCUPIED, board.place(0, 0, PieceType.FORWARD));
         assertEquals(PlaceResult.OUT_OF_BOUNDS, board.place(-1, 0, PieceType.BACK));
-        assertEquals(PlaceResult.OUT_OF_BOUNDS, board.place(0, 4, PieceType.ORB_G));
+        assertEquals(PlaceResult.OUT_OF_BOUNDS, board.place(0, 4, PieceType.ORB_2));
     }
 
     @Test
     void toBoardStateReflectsPlacements() {
         PlacementBoard board = PlacementBoard.classic(3);
-        board.place(0, 0, PieceType.ORB_R);
+        board.place(0, 0, PieceType.ORB_1);
         board.place(1, 2, PieceType.FORWARD);
 
         BoardState snapshot = board.toBoardState();
 
         assertEquals(3, snapshot.size());
-        assertEquals(PieceType.ORB_R, snapshot.pieceAt(0, 0));
+        assertEquals(PieceType.ORB_1, snapshot.pieceAt(0, 0));
         assertEquals(PieceType.FORWARD, snapshot.pieceAt(1, 2));
         assertEquals(null, snapshot.pieceAt(1, 1));
     }

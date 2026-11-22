@@ -71,10 +71,13 @@ class PvpPresentationTest {
         List<FakeThin3D.Command> commands = thin3d.commands();
         assertTrue(containsKind(commands, FakeThin3D.Command.Kind.INSTANCE_TRS));
         Cell first = expected.visitedCells().get(0);
-        float entryMidZ = (0f + BoardPlane.cellCenterZ(first.y())) * 0.5f;
+        // Leave-based tint: first drawable is full rim→cell center.
+        float rimZ = BoardPlane.portEdgeZ(entry, 8);
+        float cellZ = BoardPlane.cellCenterZ(first.y());
+        float firstSegZ = (rimZ + cellZ) * 0.5f;
         assertNotNull(
-                findTrsNear(commands, BoardPlane.cellCenterX(first.x()), entryMidZ),
-                "expected rim→first-cell owner beam segment");
+                findTrsNear(commands, BoardPlane.cellCenterX(first.x()), firstSegZ),
+                "expected rim→cell owner beam segment into first cell");
     }
 
     @Test
@@ -342,9 +345,9 @@ class PvpPresentationTest {
 
     private static BoardState classicBoard() {
         return BoardState.builder(8)
-                .place(0, 0, PieceType.ORB_R)
-                .place(1, 0, PieceType.ORB_G)
-                .place(2, 0, PieceType.ORB_B)
+                .place(0, 0, PieceType.ORB_1)
+                .place(1, 0, PieceType.ORB_2)
+                .place(2, 0, PieceType.ORB_3)
                 .place(3, 0, PieceType.FORWARD)
                 .place(4, 0, PieceType.FORWARD)
                 .place(5, 0, PieceType.BACK)

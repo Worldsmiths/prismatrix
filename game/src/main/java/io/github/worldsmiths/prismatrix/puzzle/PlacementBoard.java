@@ -16,9 +16,8 @@ public final class PlacementBoard {
     private final boolean orbsEnabled;
     private final PieceType[][] cells;
     private int remainingMirrors;
-    private int remainingOrbR;
-    private int remainingOrbG;
-    private int remainingOrbB;
+    /** Remaining count per tray channel 0..2 ({@link PieceType#ORB_1}/{@code ORB_2}/{@code ORB_3}). */
+    private final int[] remainingOrbs;
 
     private PlacementBoard(int gridSize, int mirrorBudget, boolean orbsEnabled) {
         if (gridSize < 1) {
@@ -31,9 +30,7 @@ public final class PlacementBoard {
         this.mirrorBudget = mirrorBudget;
         this.orbsEnabled = orbsEnabled;
         this.remainingMirrors = mirrorBudget;
-        this.remainingOrbR = orbsEnabled ? 1 : 0;
-        this.remainingOrbG = orbsEnabled ? 1 : 0;
-        this.remainingOrbB = orbsEnabled ? 1 : 0;
+        this.remainingOrbs = new int[] {orbsEnabled ? 1 : 0, orbsEnabled ? 1 : 0, orbsEnabled ? 1 : 0};
         this.cells = new PieceType[gridSize][gridSize];
     }
 
@@ -65,7 +62,7 @@ public final class PlacementBoard {
             remainingMirrors--;
             return PlaceResult.OK;
         }
-        if (type == PieceType.ORB_R || type == PieceType.ORB_G || type == PieceType.ORB_B) {
+        if (type.isOrb()) {
             if (!orbsEnabled) {
                 return PlaceResult.INVALID_TYPE;
             }
@@ -91,32 +88,18 @@ public final class PlacementBoard {
         cells[y][x] = null;
         if (existing == PieceType.FORWARD || existing == PieceType.BACK) {
             remainingMirrors++;
-        } else if (existing == PieceType.ORB_R
-                || existing == PieceType.ORB_G
-                || existing == PieceType.ORB_B) {
+        } else if (existing.isOrb()) {
             incrementOrb(existing);
         }
         return true;
     }
 
     private void decrementOrb(PieceType type) {
-        if (type == PieceType.ORB_R) {
-            remainingOrbR--;
-        } else if (type == PieceType.ORB_G) {
-            remainingOrbG--;
-        } else if (type == PieceType.ORB_B) {
-            remainingOrbB--;
-        }
+        remainingOrbs[type.orbChannel()]--;
     }
 
     private void incrementOrb(PieceType type) {
-        if (type == PieceType.ORB_R) {
-            remainingOrbR++;
-        } else if (type == PieceType.ORB_G) {
-            remainingOrbG++;
-        } else if (type == PieceType.ORB_B) {
-            remainingOrbB++;
-        }
+        remainingOrbs[type.orbChannel()]++;
     }
 
     public int remainingMirrors() {
@@ -128,20 +111,14 @@ public final class PlacementBoard {
     }
 
     public int remainingOrb(PieceType type) {
-        if (type == PieceType.ORB_R) {
-            return remainingOrbR;
+        if (type == null || !type.isOrb()) {
+            throw new IllegalArgumentException("not an orb type: " + type);
         }
-        if (type == PieceType.ORB_G) {
-            return remainingOrbG;
-        }
-        if (type == PieceType.ORB_B) {
-            return remainingOrbB;
-        }
-        throw new IllegalArgumentException("not an orb type: " + type);
+        return remainingOrbs[type.orbChannel()];
     }
 
     public int remainingOrbs() {
-        return remainingOrbR + remainingOrbG + remainingOrbB;
+        return remainingOrbs[0] + remainingOrbs[1] + remainingOrbs[2];
     }
 
     public int gridSize() {
