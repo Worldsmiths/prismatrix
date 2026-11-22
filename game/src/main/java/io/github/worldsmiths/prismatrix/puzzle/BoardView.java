@@ -9,7 +9,10 @@ import io.github.worldsmiths.core.thin3d.ModelInstance;
 import io.github.worldsmiths.core.thin3d.OrthographicCamera;
 import io.github.worldsmiths.core.thin3d.Ray;
 import io.github.worldsmiths.core.thin3d.Thin3D;
+import io.github.worldsmiths.prismatrix.optics.BeamPathTint;
+import io.github.worldsmiths.prismatrix.optics.BoardState;
 import io.github.worldsmiths.prismatrix.optics.Cell;
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
 import io.github.worldsmiths.prismatrix.sandbox.ConsistencyBadge;
@@ -25,7 +28,7 @@ import java.util.Set;
 /**
  * Thin3D pitched board: 38° X / 0° Y orthographic camera, pick-ray → {@link BoardPlane} (cell or
  * near-edge port), diagonal mirror blades, cell grid, status-colored clue port pads (selected
- * taller), uniform amber emissive beams from entry rim through cells to exit rim.
+ * taller), emissive beams that tint as the ray picks up orb colors along the path.
  */
 public final class BoardView {
 
@@ -35,6 +38,8 @@ public final class BoardView {
 
     private static final float DRAFT_H = 0.22f;
     private static final float GHOST_H = 0.48f;
+    private static final float ORB_H = 0.36f;
+    private static final float ORB_SIZE = 0.55f;
     private static final float MIRROR_LEN = 0.92f;
     /** Thick enough that the beam does not read through the blade face. */
     private static final float MIRROR_THICK = 0.22f;
@@ -53,6 +58,7 @@ public final class BoardView {
 
     private final Thin3D thin3d;
     private final int gridSize;
+    private OrbColorPalette colorPalette = OrbColorPalette.defaultPalette();
 
     private OrthographicCamera camera;
     private Environment environment;
@@ -60,7 +66,11 @@ public final class BoardView {
     private Model boardModel;
     private Model draftModel;
     private Model ghostModel;
-    private Model beamModel;
+    /** Indexed by tray channel 0..2 ({@link PieceType#ORB_1}/{@code ORB_2}/{@code ORB_3}). */
+    private final Model[] orbModels = new Model[3];
+    /** Indexed by Trace color mask 0..7 from {@link OrbColorPalette} mix LUT (0 = white). */
+    private final Model[] beamModels = new Model[8];
+    private final Model[] portColorModels = new Model[8];
     private Model gridLineXModel;
     private Model gridLineZModel;
     private Model portIdleModel;
@@ -79,6 +89,12 @@ public final class BoardView {
     private List<Cell> beamCells = Collections.emptyList();
     private Port beamEntryPort;
     private Port beamExitPort;
+    /** Board used to accumulate orb color along beam cells (practice / owner IncomingFire). */
+    private BoardState beamTintBoard;
+    /** Firer result: entry pad white; exit pad in result color (no path cells). */
+    private Port fireResultEntry;
+    private Port fireResultExit;
+    private int fireResultColor;
 
     public BoardView(Thin3D thin3d, int gridSize) {
         if (thin3d == null) {
@@ -89,6 +105,22 @@ public final class BoardView {
         }
         this.thin3d = thin3d;
         this.gridSize = gridSize;
+    }
+
+    /** Orb / beam / port colors. Recreates color meshes if resources already exist. */
+    public void setColorPalette(OrbColorPalette palette) {
+        OrbColorPalette next = palette == null ? OrbColorPalette.defaultPalette() : palette;
+        if (next.id() == colorPalette.id() && batch != null) {
+            return;
+        }
+        colorPalette = next;
+        if (batch != null) {
+            recreateColorModels();
+        }
+    }
+
+    public OrbColorPalette colorPalette() {
+        return colorPalette;
     }
 
     public void ensureSized(int screenWidth, int screenHeight) {
@@ -138,7 +170,7 @@ public final class BoardView {
         return pick(inputX, inputY).port();
     }
 
-    /** Clears the active Test Fire beam. */
+    /** Clears the active Test Fire / practice / owner beam. */
     public void clearBeam() {
         beamCells = Collections.emptyList();
         beamEntryPort = null;
@@ -146,8 +178,8 @@ public final class BoardView {
     }
 
     /**
-     * Sets the Test Fire path: rim → visited cell centers → exit rim. All segments share the amber
-     * beam; consistency status is drawn on port pads, not on border half-cells.
+     * Sets the Trace path: rim → visited cell centers → exit rim. Segment color follows orb pickups
+     * on the last bound board (white until the first orb).
      */
     public void setBeamPath(Port entryPort, List<Cell> cells, Port exitPort) {
         beamEntryPort = entryPort;
@@ -159,6 +191,22 @@ public final class BoardView {
         }
     }
 
+    /**
+     * Firer-facing result: light entry pad white and exit pad in {@code colorMask} (no path beam).
+     * When exit is null (absorb), only the entry pad is lit white.
+     */
+    public void setFireResultPorts(Port entryPort, Port exitPort, int colorMask) {
+        fireResultEntry = entryPort;
+        fireResultExit = exitPort;
+        fireResultColor = colorMask;
+    }
+
+    public void clearFireResultPorts() {
+        fireResultEntry = null;
+        fireResultExit = null;
+        fireResultColor = 0;
+    }
+
     public void render(
             PuzzleMode puzzle,
             GhostBoard ghosts,
@@ -167,6 +215,21 @@ public final class BoardView {
         requireCamera();
         syncPortPads(puzzle, badges, activeTestFirePort);
         syncInstances(puzzle, ghosts);
+        drawFrame();
+    }
+
+    /**
+     * Mode-agnostic board bind for PvP phase-switch: pieces from {@link BoardState} (mirrors +
+     * orbs), optional active port highlight, plus any beam set via {@link #setBeamPath}.
+     */
+    public void renderBoard(BoardState board, Port activePort) {
+        requireCamera();
+        syncPortPads(null, Collections.<ConsistencyBadge>emptyList(), activePort);
+        syncBoardPieces(board);
+        drawFrame();
+    }
+
+    private void drawFrame() {
         poseCamera();
         camera.update();
         batch.begin(camera);
@@ -197,7 +260,16 @@ public final class BoardView {
         disposeModel(boardModel);
         disposeModel(draftModel);
         disposeModel(ghostModel);
-        disposeModel(beamModel);
+        for (int i = 0; i < orbModels.length; i++) {
+            disposeModel(orbModels[i]);
+            orbModels[i] = null;
+        }
+        for (int i = 0; i < beamModels.length; i++) {
+            disposeModel(beamModels[i]);
+            beamModels[i] = null;
+            disposeModel(portColorModels[i]);
+            portColorModels[i] = null;
+        }
         disposeModel(gridLineXModel);
         disposeModel(gridLineZModel);
         disposeModel(portIdleModel);
@@ -208,7 +280,6 @@ public final class BoardView {
         boardModel = null;
         draftModel = null;
         ghostModel = null;
-        beamModel = null;
         gridLineXModel = null;
         gridLineZModel = null;
         portIdleModel = null;
@@ -224,6 +295,46 @@ public final class BoardView {
         camera = null;
     }
 
+    private void recreateColorModels() {
+        for (int i = 0; i < orbModels.length; i++) {
+            disposeModel(orbModels[i]);
+            orbModels[i] = null;
+        }
+        for (int i = 0; i < beamModels.length; i++) {
+            disposeModel(beamModels[i]);
+            beamModels[i] = null;
+            disposeModel(portColorModels[i]);
+            portColorModels[i] = null;
+        }
+        createOrbAndBeamModels(thin3d.createModelBuilder());
+    }
+
+    private void createOrbAndBeamModels(ModelBuilder builder) {
+        for (int ch = 0; ch < 3; ch++) {
+            float[] c = colorPalette.rgbaForPiece(PieceType.orb(ch));
+            orbModels[ch] =
+                    builder.createSphere(ORB_SIZE, ORB_SIZE, ORB_SIZE, 12, 12, c[0], c[1], c[2], 1f);
+        }
+        for (int mask = 0; mask < 8; mask++) {
+            float[] c = colorPalette.rgba(mask);
+            beamModels[mask] =
+                    builder.createBoxEmissive(
+                            BEAM_THICK,
+                            BEAM_THICK,
+                            BEAM_UNIT,
+                            c[0],
+                            c[1],
+                            c[2],
+                            c[3],
+                            c[0],
+                            c[1],
+                            c[2],
+                            c[3]);
+            portColorModels[mask] =
+                    builder.createBox(PORT_PAD_W, PORT_PAD_H, PORT_PAD_D, c[0], c[1], c[2], 1f);
+        }
+    }
+
     private void createSharedResources() {
         ModelBuilder builder = thin3d.createModelBuilder();
         float extent = BoardPlane.boardExtent(gridSize);
@@ -234,19 +345,7 @@ public final class BoardView {
         ghostModel =
                 builder.createBox(
                         MIRROR_LEN, GHOST_H, MIRROR_THICK, 0.35f, 0.78f, 0.98f, 1f);
-        beamModel =
-                builder.createBoxEmissive(
-                        BEAM_THICK,
-                        BEAM_THICK,
-                        BEAM_UNIT,
-                        1f,
-                        0.85f,
-                        0.35f,
-                        1f,
-                        1f,
-                        0.55f,
-                        0.15f,
-                        1f);
+        createOrbAndBeamModels(builder);
         gridLineXModel =
                 builder.createBox(extent, GRID_H, GRID_THICK, 0.55f, 0.58f, 0.62f, 1f);
         gridLineZModel =
@@ -363,7 +462,9 @@ public final class BoardView {
         Model model = portModelFor(port, byEntry, clueExits, activeStatus);
         boolean selected =
                 (activeTestFirePort != null && activeTestFirePort.equals(port))
-                        || (beamExitPort != null && beamExitPort.equals(port) && beamEntryPort != null);
+                        || (beamExitPort != null && beamExitPort.equals(port) && beamEntryPort != null)
+                        || (fireResultEntry != null && fireResultEntry.equals(port))
+                        || (fireResultExit != null && fireResultExit.equals(port));
         float scaleY = selected ? 1.8f : 1f;
         float scaleXZ = selected ? 1.1f : 1f;
         ModelInstance inst = thin3d.createInstance(model);
@@ -381,6 +482,15 @@ public final class BoardView {
             Map<Port, ConsistencyBadge.Kind> byEntry,
             Set<Port> clueExits,
             ConsistencyBadge.Kind activeStatus) {
+        // Firer result: entry white; distinct exit in Trace color (absorb → entry white only).
+        if (fireResultEntry != null && fireResultEntry.equals(port)) {
+            if (fireResultExit == null || !fireResultExit.equals(port)) {
+                return portColorModels[0];
+            }
+        }
+        if (fireResultExit != null && fireResultExit.equals(port)) {
+            return portColorModels[fireResultColor & 7];
+        }
         ConsistencyBadge.Kind kind = byEntry.get(port);
         if (kind == null
                 && activeStatus != null
@@ -420,6 +530,7 @@ public final class BoardView {
         draftInstances.clear();
         ghostInstances.clear();
         beamInstances.clear();
+        beamTintBoard = puzzle == null ? null : puzzle.draft().toBoardState();
         for (int y = 0; y < gridSize; y++) {
             for (int x = 0; x < gridSize; x++) {
                 PieceType draft = puzzle.pieceAt(x, y);
@@ -447,6 +558,36 @@ public final class BoardView {
         placeBeams();
     }
 
+    /** Bind pieces from a BoardState (mirrors as blades, orbs as spheres). No ghosts. */
+    private void syncBoardPieces(BoardState board) {
+        draftInstances.clear();
+        ghostInstances.clear();
+        beamInstances.clear();
+        beamTintBoard = board;
+        if (board != null) {
+            for (int y = 0; y < gridSize; y++) {
+                for (int x = 0; x < gridSize; x++) {
+                    PieceType piece = board.pieceAt(x, y);
+                    if (piece == null) {
+                        continue;
+                    }
+                    if (piece == PieceType.FORWARD || piece == PieceType.BACK) {
+                        draftInstances.add(
+                                placeMirror(
+                                        draftModel,
+                                        x,
+                                        y,
+                                        DRAFT_H * 0.5f,
+                                        yawFor(piece)));
+                    } else if (piece.isOrb()) {
+                        draftInstances.add(placeOrb(piece, x, y));
+                    }
+                }
+            }
+        }
+        placeBeams();
+    }
+
     private ModelInstance placeMirror(
             Model model, int opticsX, int opticsY, float y, float eulerY) {
         ModelInstance inst = thin3d.createInstance(model);
@@ -463,11 +604,38 @@ public final class BoardView {
         return inst;
     }
 
+    private ModelInstance placeOrb(PieceType type, int opticsX, int opticsY) {
+        Model model = orbModelFor(type);
+        ModelInstance inst = thin3d.createInstance(model);
+        inst.setTranslationRotationScaling(
+                BoardPlane.cellCenterX(opticsX),
+                ORB_H * 0.5f + 0.04f,
+                BoardPlane.cellCenterZ(opticsY),
+                0f,
+                0f,
+                0f,
+                1f,
+                1f,
+                1f);
+        return inst;
+    }
+
+    private Model orbModelFor(PieceType type) {
+        int ch = type.orbChannel();
+        if (ch < 0) {
+            return orbModels[0];
+        }
+        return orbModels[ch];
+    }
+
     private static float yawFor(PieceType type) {
         return type == PieceType.FORWARD ? FORWARD_YAW : BACK_YAW;
     }
 
-    /** Uniform amber segments along entry rim → cell centers → exit rim. */
+    /**
+     * Segments along entry rim → cell centers → exit rim. Tint uses leave-based masks from {@link
+     * BeamPathTint} (mix updates on the outbound leg after an orb).
+     */
     private void placeBeams() {
         if (beamCells.isEmpty() && beamEntryPort == null) {
             return;
@@ -495,19 +663,23 @@ public final class BoardView {
         }
         if (points.size() == 1) {
             float[] p = points.get(0);
-            ModelInstance inst = thin3d.createInstance(beamModel);
+            ModelInstance inst = thin3d.createInstance(beamModels[0]);
             inst.setTranslationRotationScaling(p[0], BEAM_Y, p[1], 0f, 0f, 0f, 1f, 1f, 0.4f);
             beamInstances.add(inst);
             return;
         }
+        List<Integer> masks =
+                BeamPathTint.segmentMasks(
+                        beamTintBoard, beamEntryPort, beamCells, beamExitPort);
         for (int i = 0; i < points.size() - 1; i++) {
             float[] a = points.get(i);
             float[] b = points.get(i + 1);
-            addBeamSegment(a[0], a[1], b[0], b[1]);
+            int colorMask = i < masks.size() ? masks.get(i).intValue() : 0;
+            addBeamSegment(a[0], a[1], b[0], b[1], colorMask);
         }
     }
 
-    private void addBeamSegment(float ax, float az, float bx, float bz) {
+    private void addBeamSegment(float ax, float az, float bx, float bz, int colorMask) {
         float dx = bx - ax;
         float dz = bz - az;
         float len = (float) Math.sqrt(dx * dx + dz * dz);
@@ -515,7 +687,8 @@ public final class BoardView {
             return;
         }
         float yawDeg = (float) Math.toDegrees(Math.atan2(dx, dz));
-        ModelInstance inst = thin3d.createInstance(beamModel);
+        Model model = beamModels[colorMask & 7];
+        ModelInstance inst = thin3d.createInstance(model);
         inst.setTranslationRotationScaling(
                 (ax + bx) * 0.5f,
                 BEAM_Y,

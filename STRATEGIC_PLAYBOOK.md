@@ -81,7 +81,7 @@ Source of truth for implemented Trace: `optics/TraceCore.java` + M1 HLD Appendix
 
 **Setup:** Two different primary orbs on one corridor (same row or column), with mirrors optional so one beam can traverse both before exit.
 
-**Verified sketch (`8×8`):** `ORB_R (2,2)`, `ORB_B (2,5)`, `/ (2,6)` → `T2 → L6` with **Magenta (`5`)**.
+**Verified sketch (`8×8`):** `ORB_1 (2,2)`, `ORB_3 (2,5)`, `/ (2,6)` → `T2 → L6` with **Magenta (`5`)**.
 
 **Why it works:** Opponent sees one secondary exit color. They know both bits were set, not order or where along a multi-bounce path each orb sat.
 
@@ -135,7 +135,7 @@ Source of truth for implemented Trace: `optics/TraceCore.java` + M1 HLD Appendix
 
 ### 6. The "Orb Shield" (Mirror-Guarded Orb) — W2+ · PvP
 
-**Setup (verified):** `ORB_R (4,4)`, `/ (4,3)`, `\ (3,4)`.
+**Setup (verified):** `ORB_1 (4,4)`, `/ (4,3)`, `\ (3,4)`.
 
 | Shot | Result |
 | --- | --- |
@@ -165,7 +165,7 @@ Source of truth for implemented Trace: `optics/TraceCore.java` + M1 HLD Appendix
 **Rule:** `primary | primary = primary`. A path that crosses the same orb twice exits like a single hit.
 
 **Verified sketch (`8×8`, 3 mirrors):**  
-`ORB_R (2,3)`, `\ (2,6)`, `/ (4,6)`, `\ (4,3)`  
+`ORB_1 (2,3)`, `\ (2,6)`, `/ (4,6)`, `\ (4,3)`  
 → `T2` crosses `(2,3)` downward, returns leftward through `(2,3)`, exits colored **Red** (still mask `1`).
 
 **Why it works:** Disguises loop/re-entry structure; bounce parity and ports look “too complex” for the simple color.

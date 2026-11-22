@@ -34,7 +34,7 @@ class TraceCoreTest {
         BoardState board =
                 BoardState.builder(3)
                         .place(1, 1, PieceType.FORWARD)
-                        .place(0, 1, PieceType.ORB_R)
+                        .place(0, 1, PieceType.ORB_1)
                         .build();
         Port entry = Port.of(Port.Side.T, 1, 3);
 
@@ -61,14 +61,14 @@ class TraceCoreTest {
         BoardState board =
                 BoardState.builder(3)
                         .place(1, 1, PieceType.BACK)
-                        .place(2, 1, PieceType.ORB_G)
+                        .place(2, 1, PieceType.ORB_2)
                         .build();
         Port entry = Port.of(Port.Side.T, 1, 3);
 
         TraceCore.trace(board, entry);
 
         assertEquals(PieceType.BACK, board.pieceAt(1, 1));
-        assertEquals(PieceType.ORB_G, board.pieceAt(2, 1));
+        assertEquals(PieceType.ORB_2, board.pieceAt(2, 1));
         assertNull(board.pieceAt(0, 0));
     }
 

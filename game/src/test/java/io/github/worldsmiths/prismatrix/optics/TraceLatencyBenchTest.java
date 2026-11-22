@@ -73,10 +73,10 @@ class TraceLatencyBenchTest {
     private static BoardState eightByEightWithMirrorsAndOrbs() {
         return BoardState.builder(BOARD_SIZE)
                 .place(2, 3, PieceType.FORWARD)
-                .place(4, 3, PieceType.ORB_R)
+                .place(4, 3, PieceType.ORB_1)
                 .place(5, 1, PieceType.BACK)
-                .place(1, 5, PieceType.ORB_G)
-                .place(6, 6, PieceType.ORB_B)
+                .place(1, 5, PieceType.ORB_2)
+                .place(6, 6, PieceType.ORB_3)
                 .place(3, 4, PieceType.FORWARD)
                 .build();
     }

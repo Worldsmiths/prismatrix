@@ -8,6 +8,7 @@ import io.github.worldsmiths.prismatrix.optics.TraceResult;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -57,14 +58,14 @@ public final class ConsistencyEngine {
         return TraceCore.trace(board, port);
     }
 
-    private static ConsistencyBadge.Kind badgeFor(
+    /** Package-visible for null-exit absorb compare coverage. */
+    static ConsistencyBadge.Kind badgeFor(
             ObservedShot shot, TraceResult traced, Set<Cell> ghostCells) {
         if (!intersects(traced.visitedCells(), ghostCells)) {
             return ConsistencyBadge.Kind.NEUTRAL;
         }
-        Port exit = traced.exitPort();
-        if (exit != null
-                && exit.equals(shot.exitPort())
+        // Null exits (absorb/cycle) must compare equal without NPE.
+        if (Objects.equals(traced.exitPort(), shot.exitPort())
                 && traced.colorMask() == shot.colorMask()) {
             return ConsistencyBadge.Kind.GREEN;
         }
