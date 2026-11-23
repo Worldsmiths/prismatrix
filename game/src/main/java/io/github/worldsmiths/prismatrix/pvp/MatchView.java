@@ -1,6 +1,6 @@
 package io.github.worldsmiths.prismatrix.pvp;
 
-import io.github.worldsmiths.prismatrix.sandbox.ObservedShot;
+import io.github.worldsmiths.prismatrix.pvp.ObservedShot;
 import java.util.List;
 
 /**

@@ -11,7 +11,7 @@ import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
 import io.github.worldsmiths.prismatrix.optics.TraceCore;
 import io.github.worldsmiths.prismatrix.optics.TraceResult;
-import io.github.worldsmiths.prismatrix.sandbox.ObservedShot;
+import io.github.worldsmiths.prismatrix.pvp.ObservedShot;
 import java.util.List;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
