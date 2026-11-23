@@ -3,41 +3,31 @@ package io.github.worldsmiths.prismatrix.puzzle;
 import io.github.worldsmiths.core.Draw2D;
 import io.github.worldsmiths.core.DrawMode;
 import io.github.worldsmiths.core.Font;
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
-import io.github.worldsmiths.prismatrix.sandbox.ConsistencyBadge;
-import io.github.worldsmiths.prismatrix.sandbox.PromoteResult;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Draw2D / Font chrome: Ghost|Draft mode chip, tray, remaining, badges as text+color markers,
- * Promote / Verify refuse chrome. Layout is recomputed from screen size so resize keeps controls
- * in the left/bottom and HUD in the top-right margins around the pitched board.
+ * Draw2D / Font chrome: mirror + dynamic orb tray, remaining budget, compact goals, Verify. Layout
+ * is recomputed from screen size so resize keeps controls in the left/bottom and HUD in the
+ * top-right margins around the pitched board.
  */
 public final class ChromeOverlay {
-
-    public enum EditMode {
-        GHOST,
-        DRAFT
-    }
 
     public enum ChromeHit {
         TRAY_FORWARD,
         TRAY_BACK,
-        MODE_GHOST,
-        MODE_DRAFT,
-        PROMOTE,
+        TRAY_ORB_1,
+        TRAY_ORB_2,
+        TRAY_ORB_3,
         NONE
     }
 
     static final float TRAY_BTN = 48f;
     static final float TRAY_GAP = 12f;
-    static final float MODE_BTN_W = 72f;
-    static final float PROMOTE_W = 100f;
-    static final float PROMOTE_H = 36f;
     static final float MARGIN = 16f;
-    static final float STACK_GAP = 10f;
     /** Default headed / Fake size used by convenience hit centers in tests. */
     static final int DEFAULT_W = 800;
     static final int DEFAULT_H = 600;
@@ -50,73 +40,95 @@ public final class ChromeOverlay {
         public final int screenHeight;
         public final float trayLeft;
         public final float trayTop;
-        public final float modeTop;
-        public final float promoteTop;
         public final float hudLeft;
         public final float hudTop;
+        /** Tray slots in draw order: FORWARD, BACK, then visible orbs. */
+        private final List<ChromeHit> traySlots;
 
         Layout(
                 int screenWidth,
                 int screenHeight,
                 float trayLeft,
                 float trayTop,
-                float modeTop,
-                float promoteTop,
                 float hudLeft,
-                float hudTop) {
+                float hudTop,
+                List<ChromeHit> traySlots) {
             this.screenWidth = screenWidth;
             this.screenHeight = screenHeight;
             this.trayLeft = trayLeft;
             this.trayTop = trayTop;
-            this.modeTop = modeTop;
-            this.promoteTop = promoteTop;
             this.hudLeft = hudLeft;
             this.hudTop = hudTop;
+            this.traySlots = traySlots;
         }
 
         public static Layout forSize(int screenWidth, int screenHeight) {
+            return forPuzzle(screenWidth, screenHeight, null);
+        }
+
+        public static Layout forPuzzle(int screenWidth, int screenHeight, PuzzleMode puzzle) {
             int w = screenWidth > 0 ? screenWidth : DEFAULT_W;
             int h = screenHeight > 0 ? screenHeight : DEFAULT_H;
             float trayLeft = MARGIN;
-            // Stack from the bottom edge: tray, then mode chips, then promote.
             float trayTop = h - MARGIN - TRAY_BTN;
-            float modeTop = trayTop - STACK_GAP - TRAY_BTN;
-            float promoteTop = modeTop - STACK_GAP - PROMOTE_H;
             float hudLeft = Math.max(MARGIN, w - MARGIN - 280f);
             float hudTop = MARGIN;
-            return new Layout(w, h, trayLeft, trayTop, modeTop, promoteTop, hudLeft, hudTop);
+            return new Layout(w, h, trayLeft, trayTop, hudLeft, hudTop, buildTraySlots(puzzle));
+        }
+
+        private static List<ChromeHit> buildTraySlots(PuzzleMode puzzle) {
+            List<ChromeHit> slots = new ArrayList<ChromeHit>(5);
+            slots.add(ChromeHit.TRAY_FORWARD);
+            slots.add(ChromeHit.TRAY_BACK);
+            if (puzzle != null) {
+                if (puzzle.level().orb1() > 0) {
+                    slots.add(ChromeHit.TRAY_ORB_1);
+                }
+                if (puzzle.level().orb2() > 0) {
+                    slots.add(ChromeHit.TRAY_ORB_2);
+                }
+                if (puzzle.level().orb3() > 0) {
+                    slots.add(ChromeHit.TRAY_ORB_3);
+                }
+            }
+            return slots;
+        }
+
+        float traySlotLeft(int index) {
+            return trayLeft + index * (TRAY_BTN + TRAY_GAP);
+        }
+
+        private int traySlotIndex(ChromeHit hit) {
+            for (int i = 0; i < traySlots.size(); i++) {
+                if (traySlots.get(i) == hit) {
+                    return i;
+                }
+            }
+            return -1;
         }
 
         public int trayForwardCenterX() {
-            return (int) (trayLeft + TRAY_BTN / 2f);
+            return (int) (traySlotLeft(traySlotIndex(ChromeHit.TRAY_FORWARD)) + TRAY_BTN / 2f);
         }
 
         public int trayBackCenterX() {
-            return (int) (trayLeft + TRAY_BTN + TRAY_GAP + TRAY_BTN / 2f);
+            return (int) (traySlotLeft(traySlotIndex(ChromeHit.TRAY_BACK)) + TRAY_BTN / 2f);
+        }
+
+        public int trayOrbCenterX(int channel) {
+            ChromeHit hit =
+                    channel == 0
+                            ? ChromeHit.TRAY_ORB_1
+                            : channel == 1 ? ChromeHit.TRAY_ORB_2 : ChromeHit.TRAY_ORB_3;
+            int index = traySlotIndex(hit);
+            if (index < 0) {
+                throw new IllegalArgumentException("orb channel " + channel + " not in tray");
+            }
+            return (int) (traySlotLeft(index) + TRAY_BTN / 2f);
         }
 
         public int trayCenterY() {
             return (int) (trayTop + TRAY_BTN / 2f);
-        }
-
-        public int modeGhostCenterX() {
-            return (int) (trayLeft + MODE_BTN_W / 2f);
-        }
-
-        public int modeDraftCenterX() {
-            return (int) (trayLeft + MODE_BTN_W + TRAY_GAP + MODE_BTN_W / 2f);
-        }
-
-        public int modeCenterY() {
-            return (int) (modeTop + TRAY_BTN / 2f);
-        }
-
-        public int promoteCenterX() {
-            return (int) (trayLeft + PROMOTE_W / 2f);
-        }
-
-        public int promoteCenterY() {
-            return (int) (promoteTop + PROMOTE_H / 2f);
         }
     }
 
@@ -132,61 +144,30 @@ public final class ChromeOverlay {
         return Layout.forSize(DEFAULT_W, DEFAULT_H).trayCenterY();
     }
 
-    public static int modeGhostCenterX() {
-        return Layout.forSize(DEFAULT_W, DEFAULT_H).modeGhostCenterX();
-    }
-
-    public static int modeDraftCenterX() {
-        return Layout.forSize(DEFAULT_W, DEFAULT_H).modeDraftCenterX();
-    }
-
-    public static int modeCenterY() {
-        return Layout.forSize(DEFAULT_W, DEFAULT_H).modeCenterY();
-    }
-
-    public static int promoteCenterX() {
-        return Layout.forSize(DEFAULT_W, DEFAULT_H).promoteCenterX();
-    }
-
-    public static int promoteCenterY() {
-        return Layout.forSize(DEFAULT_W, DEFAULT_H).promoteCenterY();
-    }
-
     public static ChromeHit hitTest(int inputX, int inputY) {
-        return hitTest(inputX, inputY, DEFAULT_W, DEFAULT_H);
+        return hitTest(inputX, inputY, DEFAULT_W, DEFAULT_H, null);
     }
 
     public static ChromeHit hitTest(int inputX, int inputY, int screenWidth, int screenHeight) {
-        return hitTest(inputX, inputY, Layout.forSize(screenWidth, screenHeight));
+        return hitTest(inputX, inputY, screenWidth, screenHeight, null);
+    }
+
+    public static ChromeHit hitTest(
+            int inputX, int inputY, int screenWidth, int screenHeight, PuzzleMode puzzle) {
+        return hitTest(inputX, inputY, Layout.forPuzzle(screenWidth, screenHeight, puzzle));
     }
 
     public static ChromeHit hitTest(int inputX, int inputY, Layout layout) {
-        if (inRect(inputX, inputY, layout.trayLeft, layout.trayTop, TRAY_BTN, TRAY_BTN)) {
-            return ChromeHit.TRAY_FORWARD;
-        }
-        if (inRect(
-                inputX,
-                inputY,
-                layout.trayLeft + TRAY_BTN + TRAY_GAP,
-                layout.trayTop,
-                TRAY_BTN,
-                TRAY_BTN)) {
-            return ChromeHit.TRAY_BACK;
-        }
-        if (inRect(inputX, inputY, layout.trayLeft, layout.modeTop, MODE_BTN_W, TRAY_BTN)) {
-            return ChromeHit.MODE_GHOST;
-        }
-        if (inRect(
-                inputX,
-                inputY,
-                layout.trayLeft + MODE_BTN_W + TRAY_GAP,
-                layout.modeTop,
-                MODE_BTN_W,
-                TRAY_BTN)) {
-            return ChromeHit.MODE_DRAFT;
-        }
-        if (inRect(inputX, inputY, layout.trayLeft, layout.promoteTop, PROMOTE_W, PROMOTE_H)) {
-            return ChromeHit.PROMOTE;
+        for (int i = 0; i < layout.traySlots.size(); i++) {
+            if (inRect(
+                    inputX,
+                    inputY,
+                    layout.traySlotLeft(i),
+                    layout.trayTop,
+                    TRAY_BTN,
+                    TRAY_BTN)) {
+                return layout.traySlots.get(i);
+            }
         }
         return ChromeHit.NONE;
     }
@@ -196,115 +177,104 @@ public final class ChromeOverlay {
             Font font,
             int screenWidth,
             int screenHeight,
-            EditMode mode,
             PieceType selected,
             PuzzleMode puzzle,
-            List<ConsistencyBadge> badges,
             VerifyResult lastVerify,
-            PromoteResult lastPromote) {
+            OrbColorPalette palette) {
         if (draw2d == null) {
             return;
         }
-        Layout layout = Layout.forSize(screenWidth, screenHeight);
+        Layout layout = Layout.forPuzzle(screenWidth, screenHeight, puzzle);
+        OrbColorPalette colors =
+                palette == null ? OrbColorPalette.defaultPalette() : palette;
         draw2d.setOrtho2D(0f, 0f, layout.screenWidth, layout.screenHeight);
-        drawTray(draw2d, layout, selected);
-        drawModeChips(draw2d, layout, mode);
-        drawPromoteButton(draw2d, layout);
+        drawTray(draw2d, layout, selected, colors);
         if (font != null) {
-            drawHud(font, draw2d, layout, mode, puzzle, badges, lastVerify, lastPromote);
+            drawHud(font, layout, puzzle, lastVerify);
         }
     }
 
-    private static void drawTray(Draw2D g, Layout layout, PieceType selected) {
+    private static void drawTray(
+            Draw2D g, Layout layout, PieceType selected, OrbColorPalette palette) {
         float trayDrawY = layout.screenHeight - layout.trayTop - TRAY_BTN;
+        for (int i = 0; i < layout.traySlots.size(); i++) {
+            ChromeHit slot = layout.traySlots.get(i);
+            float left = layout.traySlotLeft(i);
+            switch (slot) {
+                case TRAY_FORWARD:
+                    drawMirrorSlot(g, left, trayDrawY, selected == PieceType.FORWARD, true);
+                    break;
+                case TRAY_BACK:
+                    drawMirrorSlot(g, left, trayDrawY, selected == PieceType.BACK, false);
+                    break;
+                case TRAY_ORB_1:
+                    drawOrbSlot(g, left, trayDrawY, selected == PieceType.ORB_1, palette, 0);
+                    break;
+                case TRAY_ORB_2:
+                    drawOrbSlot(g, left, trayDrawY, selected == PieceType.ORB_2, palette, 1);
+                    break;
+                case TRAY_ORB_3:
+                    drawOrbSlot(g, left, trayDrawY, selected == PieceType.ORB_3, palette, 2);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    private static void drawMirrorSlot(
+            Draw2D g, float left, float trayDrawY, boolean selected, boolean forward) {
         g.begin(DrawMode.LINE);
         g.setColor(
-                selected == PieceType.FORWARD ? 0.95f : 0.7f,
-                selected == PieceType.FORWARD ? 0.85f : 0.7f,
-                selected == PieceType.FORWARD ? 0.35f : 0.72f,
+                selected ? 0.95f : 0.7f,
+                selected ? 0.85f : 0.7f,
+                selected ? 0.35f : 0.72f,
                 1f);
-        g.rect(layout.trayLeft, trayDrawY, TRAY_BTN, TRAY_BTN);
-        drawSlash(g, layout.trayLeft, trayDrawY, TRAY_BTN, true);
-        float backLeft = layout.trayLeft + TRAY_BTN + TRAY_GAP;
-        g.setColor(
-                selected == PieceType.BACK ? 0.95f : 0.7f,
-                selected == PieceType.BACK ? 0.85f : 0.7f,
-                selected == PieceType.BACK ? 0.35f : 0.72f,
-                1f);
-        g.rect(backLeft, trayDrawY, TRAY_BTN, TRAY_BTN);
-        drawSlash(g, backLeft, trayDrawY, TRAY_BTN, false);
+        g.rect(left, trayDrawY, TRAY_BTN, TRAY_BTN);
+        drawSlash(g, left, trayDrawY, TRAY_BTN, forward);
         g.end();
     }
 
-    private static void drawModeChips(Draw2D g, Layout layout, EditMode mode) {
-        float y = layout.screenHeight - layout.modeTop - TRAY_BTN;
+    private static void drawOrbSlot(
+            Draw2D g,
+            float left,
+            float trayDrawY,
+            boolean selected,
+            OrbColorPalette palette,
+            int channel) {
+        float[] c = palette.rgbaForPiece(PieceType.orb(channel));
         g.begin(DrawMode.FILLED);
-        g.setColor(
-                mode == EditMode.GHOST ? 0.35f : 0.25f,
-                mode == EditMode.GHOST ? 0.65f : 0.25f,
-                mode == EditMode.GHOST ? 0.85f : 0.3f,
-                1f);
-        g.rect(layout.trayLeft, y, MODE_BTN_W, TRAY_BTN);
-        g.setColor(
-                mode == EditMode.DRAFT ? 0.85f : 0.25f,
-                mode == EditMode.DRAFT ? 0.55f : 0.25f,
-                mode == EditMode.DRAFT ? 0.25f : 0.3f,
-                1f);
-        g.rect(layout.trayLeft + MODE_BTN_W + TRAY_GAP, y, MODE_BTN_W, TRAY_BTN);
+        g.setColor(c[0], c[1], c[2], selected ? 1f : 0.75f);
+        float pad = TRAY_BTN * 0.18f;
+        g.rect(left + pad, trayDrawY + pad, TRAY_BTN - 2f * pad, TRAY_BTN - 2f * pad);
         g.end();
-    }
-
-    private static void drawPromoteButton(Draw2D g, Layout layout) {
-        float y = layout.screenHeight - layout.promoteTop - PROMOTE_H;
         g.begin(DrawMode.LINE);
-        g.setColor(0.8f, 0.8f, 0.85f, 1f);
-        g.rect(layout.trayLeft, y, PROMOTE_W, PROMOTE_H);
+        g.setColor(
+                selected ? 0.95f : 0.7f,
+                selected ? 0.85f : 0.7f,
+                selected ? 0.35f : 0.72f,
+                1f);
+        g.rect(left, trayDrawY, TRAY_BTN, TRAY_BTN);
         g.end();
     }
 
     private static void drawHud(
-            Font font,
-            Draw2D draw2d,
-            Layout layout,
-            EditMode mode,
-            PuzzleMode puzzle,
-            List<ConsistencyBadge> badges,
-            VerifyResult lastVerify,
-            PromoteResult lastPromote) {
+            Font font, Layout layout, PuzzleMode puzzle, VerifyResult lastVerify) {
         float line = layout.screenHeight - layout.hudTop - 16f;
-        font.drawString("Mode: " + mode.name(), layout.hudLeft, line);
+        font.drawString(remainingChrome(puzzle), layout.hudLeft, line);
         line -= 28f;
-        font.drawString(
-                "Remaining: " + puzzle.remaining() + " / " + puzzle.mirrorBudget(),
-                layout.hudLeft,
-                line);
-        line -= 28f;
-        font.drawString("Clues / badges:", layout.hudLeft, line);
-        List<ConsistencyBadge> safeBadges =
-                badges == null ? Collections.<ConsistencyBadge>emptyList() : badges;
+        font.drawString("Goals:", layout.hudLeft, line);
         List<GoalDefinition> goals = puzzle.goals();
         for (int i = 0; i < goals.size(); i++) {
             line -= 22f;
-            GoalDefinition c = goals.get(i);
-            ConsistencyBadge.Kind kind = badgeKindFor(safeBadges, c.entryPort());
-            drawBadgeMarker(draw2d, layout.hudLeft - 18f, line, kind);
-            String badgeLabel = kind == null ? "-" : kind.name();
+            GoalDefinition g = goals.get(i);
             font.drawString(
-                    c.entryPort()
-                            + " -> "
-                            + c.exitPort()
-                            + " mask="
-                            + c.colorMask()
-                            + " ["
-                            + badgeLabel
-                            + "]",
+                    g.entryPort() + " -> " + g.exitPort() + " mask=" + g.colorMask(),
                     layout.hudLeft,
                     line);
         }
         line -= 36f;
         font.drawString(verifyChrome(puzzle, lastVerify), layout.hudLeft, line);
-        line -= 24f;
-        font.drawString(promoteChrome(lastPromote), layout.hudLeft, line);
         line -= 24f;
         if (lastVerify != null && !lastVerify.isOk() && !lastVerify.isRefused()) {
             List<Port> ports = lastVerify.mismatchedEntryPorts();
@@ -319,40 +289,29 @@ public final class ChromeOverlay {
         }
     }
 
-    private static ConsistencyBadge.Kind badgeKindFor(List<ConsistencyBadge> badges, Port entry) {
-        for (ConsistencyBadge badge : badges) {
-            if (badge.entryPort().equals(entry)) {
-                return badge.kind();
-            }
+    private static String remainingChrome(PuzzleMode puzzle) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Remaining: ")
+                .append(puzzle.remainingMirrors())
+                .append(" / ")
+                .append(puzzle.mirrorBudget())
+                .append(" mirrors");
+        if (puzzle.level().orb1() > 0
+                || puzzle.level().orb2() > 0
+                || puzzle.level().orb3() > 0) {
+            sb.append(" | orbs ")
+                    .append(puzzle.remainingOrb(PieceType.ORB_1))
+                    .append("/")
+                    .append(puzzle.remainingOrb(PieceType.ORB_2))
+                    .append("/")
+                    .append(puzzle.remainingOrb(PieceType.ORB_3));
         }
-        return null;
-    }
-
-    private static void drawBadgeMarker(
-            Draw2D draw2d, float x, float y, ConsistencyBadge.Kind kind) {
-        if (kind == null) {
-            return;
-        }
-        draw2d.begin(DrawMode.FILLED);
-        switch (kind) {
-            case GREEN:
-                draw2d.setColor(0.2f, 0.85f, 0.35f, 1f);
-                break;
-            case RED:
-                draw2d.setColor(0.9f, 0.25f, 0.25f, 1f);
-                break;
-            case NEUTRAL:
-            default:
-                draw2d.setColor(0.55f, 0.55f, 0.6f, 1f);
-                break;
-        }
-        draw2d.rect(x, y, 12f, 12f);
-        draw2d.end();
+        return sb.toString();
     }
 
     private static String verifyChrome(PuzzleMode puzzle, VerifyResult lastVerify) {
         if (!puzzle.canVerify()) {
-            return "Verify: disabled (spend budget)";
+            return "Verify: disabled (spend inventory)";
         }
         if (lastVerify == null) {
             return "Verify: ready (ENTER / V)";
@@ -361,28 +320,9 @@ public final class ChromeOverlay {
             return "Verify: OK";
         }
         if (lastVerify.isRefused()) {
-            return "Verify: disabled (spend budget)";
+            return "Verify: disabled (spend inventory)";
         }
         return "Verify: FAIL";
-    }
-
-    private static String promoteChrome(PromoteResult lastPromote) {
-        if (lastPromote == null) {
-            return "Promote: ready (P / button)";
-        }
-        switch (lastPromote.kind()) {
-            case OK:
-                return "Promote: OK";
-            case OVER_BUDGET:
-                return "Promote: refuse OVER_BUDGET need="
-                        + lastPromote.need()
-                        + " rem="
-                        + lastPromote.remaining();
-            case CELL_CONFLICT:
-                return "Promote: refuse CELL_CONFLICT";
-            default:
-                return "Promote: ready (P / button)";
-        }
     }
 
     private static void drawSlash(

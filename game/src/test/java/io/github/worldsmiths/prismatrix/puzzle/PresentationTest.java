@@ -12,9 +12,9 @@ import io.github.worldsmiths.core.Key;
 import io.github.worldsmiths.core.thin3d.FakeThin3D;
 import io.github.worldsmiths.core.thin3d.Ray;
 import io.github.worldsmiths.core.thin3d.Vec3;
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
-import io.github.worldsmiths.prismatrix.sandbox.PromoteResult;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -35,12 +35,51 @@ class PresentationTest {
         return PuzzleMode.open(level);
     }
 
+    private static PuzzleMode openWithFixedForwardAt20() {
+        LevelDefinition level =
+                new LevelDefinition(
+                        "fixed",
+                        6,
+                        1,
+                        0,
+                        0,
+                        0,
+                        null,
+                        Collections.singletonList(
+                                new GoalDefinition(
+                                        Port.of(Port.Side.T, 2, 6),
+                                        Port.of(Port.Side.B, 2, 6),
+                                        0)),
+                        Collections.singletonList(
+                                new FixedPieceDefinition(2, 0, PieceType.FORWARD)));
+        return PuzzleMode.open(level);
+    }
+
+    private static PuzzleMode openWithOrb() {
+        LevelDefinition level =
+                new LevelDefinition(
+                        "orb",
+                        6,
+                        0,
+                        1,
+                        0,
+                        0,
+                        OrbColorPalette.Id.RED_YELLOW_BLUE,
+                        Collections.singletonList(
+                                new GoalDefinition(
+                                        Port.of(Port.Side.T, 0, 6),
+                                        Port.of(Port.Side.B, 0, 6),
+                                        PieceType.COLOR_1)),
+                        Collections.<FixedPieceDefinition>emptyList());
+        return PuzzleMode.open(level);
+    }
+
     private static Presentation pitched(PuzzleMode puzzle, FakeEngineServices services) {
         return new Presentation(puzzle, services.thin3d());
     }
 
     @Test
-    void ghostModeTrayThenPickPlacesGhostNotDraft() {
+    void trayThenPickPlacesOnPlayerBoard() {
         PuzzleMode puzzle = openBudget1();
         FakeEngineServices services = new FakeEngineServices();
         Presentation presentation = pitched(puzzle, services);
@@ -52,28 +91,24 @@ class PresentationTest {
         thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(0), BoardPlane.cellCenterZ(0)));
         tap(input, presentation, 100, 100);
 
-        assertEquals(PieceType.FORWARD, presentation.ghostBoard().pieceAt(0, 0));
-        assertNull(puzzle.pieceAt(0, 0));
-        assertEquals(1, puzzle.remaining());
+        assertEquals(PieceType.FORWARD, puzzle.pieceAt(0, 0));
+        assertEquals(0, puzzle.remaining());
     }
 
     @Test
-    void draftModeTrayThenPickPlacesOnDraft() {
+    void tapOccupiedCellRemovesPiece() {
         PuzzleMode puzzle = openBudget1();
+        assertEquals(PlaceResult.OK, puzzle.place(1, 1, PieceType.BACK));
         FakeEngineServices services = new FakeEngineServices();
         Presentation presentation = pitched(puzzle, services);
         FakeInput input = services.input();
         FakeThin3D thin3d = services.thin3d();
 
-        tap(input, presentation, ChromeOverlay.modeDraftCenterX(), ChromeOverlay.modeCenterY());
-        assertEquals(ChromeOverlay.EditMode.DRAFT, presentation.editMode());
-
-        tap(input, presentation, ChromeOverlay.trayBackCenterX(), ChromeOverlay.trayCenterY());
         thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(1), BoardPlane.cellCenterZ(1)));
         tap(input, presentation, 120, 120);
 
-        assertEquals(PieceType.BACK, puzzle.pieceAt(1, 1));
-        assertNull(presentation.ghostBoard().pieceAt(1, 1));
+        assertNull(puzzle.pieceAt(1, 1));
+        assertEquals(1, puzzle.remaining());
     }
 
     @Test
@@ -113,7 +148,6 @@ class PresentationTest {
         FakeInput input = services.input();
         FakeThin3D thin3d = services.thin3d();
 
-        // Prime Thin3D resources (camera / emissive beam model) before clearing the command log.
         presentation.update(input, 800, 600);
         presentation.render(services.draw2d(), null, 800, 600);
         assertTrue(
@@ -121,17 +155,14 @@ class PresentationTest {
                 "beam model should be createBoxEmissive");
         thin3d.clear();
 
-        // Seed a plane hit just outside T2 (world strip); FakeThin3D ignores screen xy for the ray.
         float margin = BoardPlane.portStripMargin(6);
-        thin3d.seedPickRay(
-                downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f));
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f));
         tap(input, presentation, 200, 200);
         presentation.render(services.draw2d(), null, 800, 600);
 
         List<FakeThin3D.Command> commands = thin3d.commands();
         assertTrue(containsKind(commands, FakeThin3D.Command.Kind.CREATE_INSTANCE));
         assertTrue(containsKind(commands, FakeThin3D.Command.Kind.INSTANCE_TRS));
-        // Empty T2: first beam segment is rim z=0 → cell (2,0) center (half-cell), not cell-center start.
         float entryMidZ = (0f + BoardPlane.cellCenterZ(0)) * 0.5f;
         FakeThin3D.Command entrySeg =
                 findTrsNear(commands, BoardPlane.cellCenterX(2), entryMidZ);
@@ -141,39 +172,7 @@ class PresentationTest {
     }
 
     @Test
-    void draftModeTestFireTracesDraftNotGhost() {
-        PuzzleMode puzzle = openBudget1();
-        FakeEngineServices services = new FakeEngineServices();
-        Presentation presentation = pitched(puzzle, services);
-        FakeInput input = services.input();
-        FakeThin3D thin3d = services.thin3d();
-
-        presentation.update(input, 800, 600);
-        presentation.render(services.draw2d(), null, 800, 600);
-
-        // Ghost / at (2,0) would deflect T2; draft stays empty → straight DOWN to B2.
-        tap(input, presentation, ChromeOverlay.trayForwardCenterX(), ChromeOverlay.trayCenterY());
-        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), BoardPlane.cellCenterZ(0)));
-        tap(input, presentation, 100, 100);
-        assertEquals(PieceType.FORWARD, presentation.ghostBoard().pieceAt(2, 0));
-
-        tap(input, presentation, ChromeOverlay.modeDraftCenterX(), ChromeOverlay.modeCenterY());
-        assertEquals(ChromeOverlay.EditMode.DRAFT, presentation.editMode());
-
-        thin3d.clear();
-        float margin = BoardPlane.portStripMargin(6);
-        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f));
-        tap(input, presentation, 200, 200);
-        presentation.render(services.draw2d(), null, 800, 600);
-
-        // Empty draft: last rim segment ends at B2 (z = extent), not a side exit from the ghost /.
-        float extent = BoardPlane.boardExtent(6);
-        float exitMidZ = (BoardPlane.cellCenterZ(5) + extent) * 0.5f;
-        assertNotNull(findTrsNear(thin3d.commands(), BoardPlane.cellCenterX(2), exitMidZ));
-    }
-
-    @Test
-    void ghostPlaceAfterTestFireRetracesBeam() {
+    void stickyTestFireRetracesAfterPlace() {
         PuzzleMode puzzle = openBudget1();
         FakeEngineServices services = new FakeEngineServices();
         Presentation presentation = pitched(puzzle, services);
@@ -193,8 +192,7 @@ class PresentationTest {
         tap(input, presentation, 100, 100);
         presentation.render(services.draw2d(), null, 800, 600);
 
-        assertEquals(PieceType.FORWARD, presentation.ghostBoard().pieceAt(2, 0));
-        // Sticky Test Fire re-traces: beam still recorded after ghost edit.
+        assertEquals(PieceType.FORWARD, puzzle.pieceAt(2, 0));
         assertTrue(containsKind(thin3d.commands(), FakeThin3D.Command.Kind.INSTANCE_TRS));
         assertNotNull(
                 findTrsNear(
@@ -204,35 +202,105 @@ class PresentationTest {
     }
 
     @Test
-    void chromeLayoutTracksScreenSize() {
-        ChromeOverlay.Layout tall = ChromeOverlay.Layout.forSize(800, 900);
-        ChromeOverlay.Layout wide = ChromeOverlay.Layout.forSize(1280, 600);
-        assertTrue(tall.trayTop > ChromeOverlay.Layout.forSize(800, 600).trayTop);
-        assertTrue(wide.hudLeft > ChromeOverlay.Layout.forSize(800, 600).hudLeft);
-        assertEquals(
-                ChromeOverlay.ChromeHit.TRAY_FORWARD,
-                ChromeOverlay.hitTest(
-                        tall.trayForwardCenterX(), tall.trayCenterY(), tall.screenWidth, tall.screenHeight));
-    }
-
-    @Test
-    void promoteKeyCopiesGhostsIntoDraft() {
-        PuzzleMode puzzle = openBudget1();
+    void testFireTracesMergedBoardIncludingFixed() {
+        PuzzleMode puzzle = openWithFixedForwardAt20();
+        assertEquals(PieceType.FORWARD, puzzle.pieceAt(2, 0));
+        assertTrue(puzzle.isFixed(2, 0));
         FakeEngineServices services = new FakeEngineServices();
         Presentation presentation = pitched(puzzle, services);
         FakeInput input = services.input();
         FakeThin3D thin3d = services.thin3d();
 
-        tap(input, presentation, ChromeOverlay.trayForwardCenterX(), ChromeOverlay.trayCenterY());
+        presentation.update(input, 800, 600);
+        presentation.render(services.draw2d(), null, 800, 600);
+        thin3d.clear();
+
+        float margin = BoardPlane.portStripMargin(6);
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), -margin * 0.5f));
+        tap(input, presentation, 200, 200);
+        presentation.render(services.draw2d(), null, 800, 600);
+
+        // Fixed / at (2,0) deflects T2 toward L0 — exit rim on left, not bottom B2.
+        float leftExitMidX = (0f + BoardPlane.cellCenterX(0)) * 0.5f;
+        assertNotNull(
+                findTrsNear(thin3d.commands(), leftExitMidX, BoardPlane.cellCenterZ(0)),
+                "merged Test Fire should deflect off fixed FORWARD");
+    }
+
+    @Test
+    void tapFixedCellDoesNotRemove() {
+        PuzzleMode puzzle = openWithFixedForwardAt20();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+        FakeThin3D thin3d = services.thin3d();
+
+        thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(2), BoardPlane.cellCenterZ(0)));
+        tap(input, presentation, 100, 100);
+
+        assertEquals(PieceType.FORWARD, puzzle.pieceAt(2, 0));
+        assertEquals(1, puzzle.remaining());
+    }
+
+    @Test
+    void orbTraySlotSelectsAndPlacesOrb() {
+        PuzzleMode puzzle = openWithOrb();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+        FakeThin3D thin3d = services.thin3d();
+
+        ChromeOverlay.Layout layout = ChromeOverlay.Layout.forPuzzle(800, 600, puzzle);
+        tap(input, presentation, layout.trayOrbCenterX(0), layout.trayCenterY());
+
         thin3d.seedPickRay(downwardOnto(BoardPlane.cellCenterX(0), BoardPlane.cellCenterZ(0)));
         tap(input, presentation, 100, 100);
 
-        input.setKeyDown(Key.P, true);
+        assertEquals(PieceType.ORB_1, puzzle.pieceAt(0, 0));
+        assertEquals(0, puzzle.remainingOrb(PieceType.ORB_1));
+    }
+
+    @Test
+    void levelWithOrbColorsSetsBoardPalette() {
+        PuzzleMode puzzle = openWithOrb();
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+
+        assertEquals(OrbColorPalette.Id.RED_YELLOW_BLUE, presentation.colorPalette().id());
+    }
+
+    @Test
+    void chromeLayoutTracksScreenSize() {
+        PuzzleMode puzzle = openBudget1();
+        ChromeOverlay.Layout tall = ChromeOverlay.Layout.forPuzzle(800, 900, puzzle);
+        ChromeOverlay.Layout wide = ChromeOverlay.Layout.forPuzzle(1280, 600, puzzle);
+        assertTrue(tall.trayTop > ChromeOverlay.Layout.forPuzzle(800, 600, puzzle).trayTop);
+        assertTrue(wide.hudLeft > ChromeOverlay.Layout.forPuzzle(800, 600, puzzle).hudLeft);
+        assertEquals(
+                ChromeOverlay.ChromeHit.TRAY_FORWARD,
+                ChromeOverlay.hitTest(
+                        tall.trayForwardCenterX(),
+                        tall.trayCenterY(),
+                        tall.screenWidth,
+                        tall.screenHeight,
+                        puzzle));
+        assertEquals(
+                ChromeOverlay.ChromeHit.NONE,
+                ChromeOverlay.hitTest(10, 10, 800, 600, puzzle));
+    }
+
+    @Test
+    void vKeyVerifiesWhenReady() {
+        PuzzleMode puzzle = openBudget1();
+        assertEquals(PlaceResult.OK, puzzle.place(2, 2, PieceType.FORWARD));
+        FakeEngineServices services = new FakeEngineServices();
+        Presentation presentation = pitched(puzzle, services);
+        FakeInput input = services.input();
+
+        input.setKeyDown(Key.V, true);
         presentation.update(input, 800, 600);
 
-        assertEquals(PromoteResult.Kind.OK, presentation.lastPromoteResult().kind());
-        assertEquals(PieceType.FORWARD, puzzle.pieceAt(0, 0));
-        assertEquals(PieceType.FORWARD, presentation.ghostBoard().pieceAt(0, 0));
+        assertTrue(presentation.lastVerifyResult().isOk());
     }
 
     private static Ray downwardOnto(float hitX, float hitZ) {
@@ -254,16 +322,6 @@ class PresentationTest {
             }
         }
         return false;
-    }
-
-    private static FakeThin3D.Command firstKind(
-            List<FakeThin3D.Command> commands, FakeThin3D.Command.Kind kind) {
-        for (FakeThin3D.Command command : commands) {
-            if (command.kind == kind) {
-                return command;
-            }
-        }
-        throw new AssertionError("missing command kind " + kind);
     }
 
     private static FakeThin3D.Command findTrsNear(

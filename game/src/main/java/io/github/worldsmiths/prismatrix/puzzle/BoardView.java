@@ -15,8 +15,6 @@ import io.github.worldsmiths.prismatrix.optics.Cell;
 import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
-import io.github.worldsmiths.prismatrix.sandbox.ConsistencyBadge;
-import io.github.worldsmiths.prismatrix.sandbox.GhostBoard;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,8 +25,9 @@ import java.util.Set;
 
 /**
  * Thin3D pitched board: 38° X / 0° Y orthographic camera, pick-ray → {@link BoardPlane} (cell or
- * near-edge port), diagonal mirror blades, cell grid, status-colored clue port pads (selected
- * taller), emissive beams that tint as the ray picks up orb colors along the path.
+ * near-edge port), diagonal mirror blades, cell grid, persistent goal pads (entry white / exit
+ * colored), recessed fixed décor with lock mark, and emissive beams that tint as the ray picks up
+ * orb colors along the path.
  */
 public final class BoardView {
 
@@ -37,12 +36,16 @@ public final class BoardView {
     static final float CAMERA_DISTANCE = 14f;
 
     private static final float DRAFT_H = 0.22f;
-    private static final float GHOST_H = 0.48f;
+    private static final float FIXED_H = 0.14f;
     private static final float ORB_H = 0.36f;
+    private static final float FIXED_ORB_H = 0.24f;
     private static final float ORB_SIZE = 0.55f;
+    private static final float FIXED_ORB_SIZE = 0.42f;
     private static final float MIRROR_LEN = 0.92f;
     /** Thick enough that the beam does not read through the blade face. */
     private static final float MIRROR_THICK = 0.22f;
+    private static final float LOCK_SIZE = 0.18f;
+    private static final float LOCK_H = 0.08f;
     private static final float BEAM_Y = 0.14f;
     private static final float BEAM_THICK = 0.14f;
     /** Unit-length emissive box along local Z; scaled per segment. */
@@ -65,7 +68,9 @@ public final class BoardView {
     private ModelBatch batch;
     private Model boardModel;
     private Model draftModel;
-    private Model ghostModel;
+    private Model fixedMirrorModel;
+    private Model fixedOrbModel;
+    private Model lockModel;
     /** Indexed by tray channel 0..2 ({@link PieceType#ORB_1}/{@code ORB_2}/{@code ORB_3}). */
     private final Model[] orbModels = new Model[3];
     /** Indexed by Trace color mask 0..7 from {@link OrbColorPalette} mix LUT (0 = white). */
@@ -74,15 +79,10 @@ public final class BoardView {
     private Model gridLineXModel;
     private Model gridLineZModel;
     private Model portIdleModel;
-    private Model portClueExitModel;
-    private Model portNeutralModel;
-    private Model portGreenModel;
-    private Model portRedModel;
     private ModelInstance boardInstance;
     private final List<ModelInstance> gridInstances = new ArrayList<ModelInstance>();
     private final List<ModelInstance> portInstances = new ArrayList<ModelInstance>();
     private final List<ModelInstance> draftInstances = new ArrayList<ModelInstance>();
-    private final List<ModelInstance> ghostInstances = new ArrayList<ModelInstance>();
     private final List<ModelInstance> beamInstances = new ArrayList<ModelInstance>();
     private int lastWidth = -1;
     private int lastHeight = -1;
@@ -207,14 +207,11 @@ public final class BoardView {
         fireResultColor = 0;
     }
 
-    public void render(
-            PuzzleMode puzzle,
-            GhostBoard ghosts,
-            List<ConsistencyBadge> badges,
-            Port activeTestFirePort) {
+    /** Puzzle bind: goal pads, player + fixed pieces (recessed lock), sticky Test Fire beam. */
+    public void render(PuzzleMode puzzle, Port activeTestFirePort) {
         requireCamera();
-        syncPortPads(puzzle, badges, activeTestFirePort);
-        syncInstances(puzzle, ghosts);
+        syncPortPads(puzzle, activeTestFirePort);
+        syncPuzzlePieces(puzzle);
         drawFrame();
     }
 
@@ -224,7 +221,7 @@ public final class BoardView {
      */
     public void renderBoard(BoardState board, Port activePort) {
         requireCamera();
-        syncPortPads(null, Collections.<ConsistencyBadge>emptyList(), activePort);
+        syncPortPads(null, activePort);
         syncBoardPieces(board);
         drawFrame();
     }
@@ -243,9 +240,6 @@ public final class BoardView {
         for (ModelInstance inst : draftInstances) {
             batch.render(inst, environment);
         }
-        for (ModelInstance inst : ghostInstances) {
-            batch.render(inst, environment);
-        }
         for (ModelInstance inst : beamInstances) {
             batch.render(inst, environment);
         }
@@ -259,7 +253,9 @@ public final class BoardView {
         }
         disposeModel(boardModel);
         disposeModel(draftModel);
-        disposeModel(ghostModel);
+        disposeModel(fixedMirrorModel);
+        disposeModel(fixedOrbModel);
+        disposeModel(lockModel);
         for (int i = 0; i < orbModels.length; i++) {
             disposeModel(orbModels[i]);
             orbModels[i] = null;
@@ -273,24 +269,17 @@ public final class BoardView {
         disposeModel(gridLineXModel);
         disposeModel(gridLineZModel);
         disposeModel(portIdleModel);
-        disposeModel(portClueExitModel);
-        disposeModel(portNeutralModel);
-        disposeModel(portGreenModel);
-        disposeModel(portRedModel);
         boardModel = null;
         draftModel = null;
-        ghostModel = null;
+        fixedMirrorModel = null;
+        fixedOrbModel = null;
+        lockModel = null;
         gridLineXModel = null;
         gridLineZModel = null;
         portIdleModel = null;
-        portClueExitModel = null;
-        portNeutralModel = null;
-        portGreenModel = null;
-        portRedModel = null;
         gridInstances.clear();
         portInstances.clear();
         draftInstances.clear();
-        ghostInstances.clear();
         beamInstances.clear();
         camera = null;
     }
@@ -342,9 +331,22 @@ public final class BoardView {
         draftModel =
                 builder.createBox(
                         MIRROR_LEN, DRAFT_H, MIRROR_THICK, 0.88f, 0.88f, 0.92f, 1f);
-        ghostModel =
+        // Recessed / darker fixed mirrors.
+        fixedMirrorModel =
                 builder.createBox(
-                        MIRROR_LEN, GHOST_H, MIRROR_THICK, 0.35f, 0.78f, 0.98f, 1f);
+                        MIRROR_LEN, FIXED_H, MIRROR_THICK, 0.42f, 0.44f, 0.5f, 1f);
+        fixedOrbModel =
+                builder.createSphere(
+                        FIXED_ORB_SIZE,
+                        FIXED_ORB_SIZE,
+                        FIXED_ORB_SIZE,
+                        10,
+                        10,
+                        0.4f,
+                        0.42f,
+                        0.48f,
+                        1f);
+        lockModel = builder.createBox(LOCK_SIZE, LOCK_H, LOCK_SIZE, 0.92f, 0.78f, 0.28f, 1f);
         createOrbAndBeamModels(builder);
         gridLineXModel =
                 builder.createBox(extent, GRID_H, GRID_THICK, 0.55f, 0.58f, 0.62f, 1f);
@@ -352,15 +354,6 @@ public final class BoardView {
                 builder.createBox(GRID_THICK, GRID_H, extent, 0.55f, 0.58f, 0.62f, 1f);
         portIdleModel =
                 builder.createBox(PORT_PAD_W, PORT_PAD_H, PORT_PAD_D, 0.28f, 0.28f, 0.32f, 1f);
-        // Cool grey marks puzzle exits that are not also clue entries.
-        portClueExitModel =
-                builder.createBox(PORT_PAD_W, PORT_PAD_H, PORT_PAD_D, 0.38f, 0.48f, 0.62f, 1f);
-        portNeutralModel =
-                builder.createBox(PORT_PAD_W, PORT_PAD_H, PORT_PAD_D, 0.55f, 0.55f, 0.6f, 1f);
-        portGreenModel =
-                builder.createBox(PORT_PAD_W, PORT_PAD_H, PORT_PAD_D, 0.2f, 0.85f, 0.35f, 1f);
-        portRedModel =
-                builder.createBox(PORT_PAD_W, PORT_PAD_H, PORT_PAD_D, 0.9f, 0.25f, 0.25f, 1f);
         boardInstance = thin3d.createInstance(boardModel);
         float cx = BoardPlane.boardCenterX(gridSize);
         float cz = BoardPlane.boardCenterZ(gridSize);
@@ -389,18 +382,16 @@ public final class BoardView {
         }
     }
 
-    private void syncPortPads(
-            PuzzleMode puzzle, List<ConsistencyBadge> badges, Port activeTestFirePort) {
+    private void syncPortPads(PuzzleMode puzzle, Port activeTestFirePort) {
         portInstances.clear();
-        Map<Port, ConsistencyBadge.Kind> byEntry = badgeIndex(badges);
-        Set<Port> clueExits = new HashSet<Port>();
+        Set<Port> goalEntries = new HashSet<Port>();
+        Map<Port, Integer> goalExitColors = new HashMap<Port, Integer>();
         if (puzzle != null) {
             for (GoalDefinition goal : puzzle.goals()) {
-                clueExits.add(goal.exitPort());
+                goalEntries.add(goal.entryPort());
+                goalExitColors.put(goal.exitPort(), Integer.valueOf(goal.colorMask()));
             }
         }
-        ConsistencyBadge.Kind activeStatus =
-                activeTestFirePort == null ? null : byEntry.get(activeTestFirePort);
         float extent = BoardPlane.boardExtent(gridSize);
         float margin = BoardPlane.portStripMargin(gridSize);
         float portY = PORT_PAD_H * 0.5f + 0.02f;
@@ -412,40 +403,36 @@ public final class BoardView {
                     -outward,
                     0f,
                     portY,
-                    byEntry,
-                    clueExits,
-                    activeTestFirePort,
-                    activeStatus);
+                    goalEntries,
+                    goalExitColors,
+                    activeTestFirePort);
             placePortPad(
                     Port.of(Port.Side.B, i, gridSize),
                     BoardPlane.cellCenterX(i),
                     extent + outward,
                     0f,
                     portY,
-                    byEntry,
-                    clueExits,
-                    activeTestFirePort,
-                    activeStatus);
+                    goalEntries,
+                    goalExitColors,
+                    activeTestFirePort);
             placePortPad(
                     Port.of(Port.Side.L, i, gridSize),
                     -outward,
                     BoardPlane.cellCenterZ(i),
                     90f,
                     portY,
-                    byEntry,
-                    clueExits,
-                    activeTestFirePort,
-                    activeStatus);
+                    goalEntries,
+                    goalExitColors,
+                    activeTestFirePort);
             placePortPad(
                     Port.of(Port.Side.R, i, gridSize),
                     extent + outward,
                     BoardPlane.cellCenterZ(i),
                     90f,
                     portY,
-                    byEntry,
-                    clueExits,
-                    activeTestFirePort,
-                    activeStatus);
+                    goalEntries,
+                    goalExitColors,
+                    activeTestFirePort);
         }
     }
 
@@ -455,11 +442,10 @@ public final class BoardView {
             float z,
             float yawDeg,
             float portY,
-            Map<Port, ConsistencyBadge.Kind> byEntry,
-            Set<Port> clueExits,
-            Port activeTestFirePort,
-            ConsistencyBadge.Kind activeStatus) {
-        Model model = portModelFor(port, byEntry, clueExits, activeStatus);
+            Set<Port> goalEntries,
+            Map<Port, Integer> goalExitColors,
+            Port activeTestFirePort) {
+        Model model = portModelFor(port, goalEntries, goalExitColors);
         boolean selected =
                 (activeTestFirePort != null && activeTestFirePort.equals(port))
                         || (beamExitPort != null && beamExitPort.equals(port) && beamEntryPort != null)
@@ -474,15 +460,11 @@ public final class BoardView {
     }
 
     /**
-     * Status lives on pads: clue entry → badge color; active Test Fire exit inherits that status;
-     * other clue exits stay cool grey; everything else idle.
+     * Firer result overrides; else puzzle goal entry → white, goal exit → colorMask; else idle.
+     * Entry wins when a port is both.
      */
     private Model portModelFor(
-            Port port,
-            Map<Port, ConsistencyBadge.Kind> byEntry,
-            Set<Port> clueExits,
-            ConsistencyBadge.Kind activeStatus) {
-        // Firer result: entry white; distinct exit in Trace color (absorb → entry white only).
+            Port port, Set<Port> goalEntries, Map<Port, Integer> goalExitColors) {
         if (fireResultEntry != null && fireResultEntry.equals(port)) {
             if (fireResultExit == null || !fireResultExit.equals(port)) {
                 return portColorModels[0];
@@ -491,67 +473,45 @@ public final class BoardView {
         if (fireResultExit != null && fireResultExit.equals(port)) {
             return portColorModels[fireResultColor & 7];
         }
-        ConsistencyBadge.Kind kind = byEntry.get(port);
-        if (kind == null
-                && activeStatus != null
-                && beamExitPort != null
-                && beamExitPort.equals(port)) {
-            kind = activeStatus;
+        if (goalEntries.contains(port)) {
+            return portColorModels[0];
         }
-        if (kind != null) {
-            switch (kind) {
-                case GREEN:
-                    return portGreenModel;
-                case RED:
-                    return portRedModel;
-                case NEUTRAL:
-                default:
-                    return portNeutralModel;
-            }
-        }
-        if (clueExits.contains(port)) {
-            return portClueExitModel;
+        Integer exitMask = goalExitColors.get(port);
+        if (exitMask != null) {
+            return portColorModels[exitMask.intValue() & 7];
         }
         return portIdleModel;
     }
 
-    private static Map<Port, ConsistencyBadge.Kind> badgeIndex(List<ConsistencyBadge> badges) {
-        Map<Port, ConsistencyBadge.Kind> map = new HashMap<Port, ConsistencyBadge.Kind>();
-        if (badges == null) {
-            return map;
-        }
-        for (ConsistencyBadge badge : badges) {
-            map.put(badge.entryPort(), badge.kind());
-        }
-        return map;
-    }
-
-    private void syncInstances(PuzzleMode puzzle, GhostBoard ghosts) {
+    private void syncPuzzlePieces(PuzzleMode puzzle) {
         draftInstances.clear();
-        ghostInstances.clear();
         beamInstances.clear();
         beamTintBoard = puzzle == null ? null : puzzle.mergedBoard();
+        if (puzzle == null) {
+            placeBeams();
+            return;
+        }
         for (int y = 0; y < gridSize; y++) {
             for (int x = 0; x < gridSize; x++) {
-                PieceType draft = puzzle.pieceAt(x, y);
-                if (draft != null) {
-                    draftInstances.add(
-                            placeMirror(
-                                    draftModel,
-                                    x,
-                                    y,
-                                    DRAFT_H * 0.5f,
-                                    yawFor(draft)));
+                PieceType piece = puzzle.pieceAt(x, y);
+                if (piece == null) {
+                    continue;
                 }
-                PieceType ghost = ghosts == null ? null : ghosts.pieceAt(x, y);
-                if (ghost != null) {
-                    ghostInstances.add(
-                            placeMirror(
-                                    ghostModel,
-                                    x,
-                                    y,
-                                    GHOST_H * 0.5f + 0.06f,
-                                    yawFor(ghost)));
+                boolean fixed = puzzle.isFixed(x, y);
+                if (piece == PieceType.FORWARD || piece == PieceType.BACK) {
+                    Model model = fixed ? fixedMirrorModel : draftModel;
+                    float h = fixed ? FIXED_H : DRAFT_H;
+                    draftInstances.add(placeMirror(model, x, y, h * 0.5f, yawFor(piece)));
+                    if (fixed) {
+                        draftInstances.add(placeLock(x, y, h + 0.04f));
+                    }
+                } else if (piece.isOrb()) {
+                    if (fixed) {
+                        draftInstances.add(placeFixedOrb(x, y));
+                        draftInstances.add(placeLock(x, y, FIXED_ORB_H + 0.06f));
+                    } else {
+                        draftInstances.add(placeOrb(piece, x, y));
+                    }
                 }
             }
         }
@@ -561,7 +521,6 @@ public final class BoardView {
     /** Bind pieces from a BoardState (mirrors as blades, orbs as spheres). No ghosts. */
     private void syncBoardPieces(BoardState board) {
         draftInstances.clear();
-        ghostInstances.clear();
         beamInstances.clear();
         beamTintBoard = board;
         if (board != null) {
@@ -610,6 +569,36 @@ public final class BoardView {
         inst.setTranslationRotationScaling(
                 BoardPlane.cellCenterX(opticsX),
                 ORB_H * 0.5f + 0.04f,
+                BoardPlane.cellCenterZ(opticsY),
+                0f,
+                0f,
+                0f,
+                1f,
+                1f,
+                1f);
+        return inst;
+    }
+
+    private ModelInstance placeFixedOrb(int opticsX, int opticsY) {
+        ModelInstance inst = thin3d.createInstance(fixedOrbModel);
+        inst.setTranslationRotationScaling(
+                BoardPlane.cellCenterX(opticsX),
+                FIXED_ORB_H * 0.5f + 0.03f,
+                BoardPlane.cellCenterZ(opticsY),
+                0f,
+                0f,
+                0f,
+                1f,
+                1f,
+                1f);
+        return inst;
+    }
+
+    private ModelInstance placeLock(int opticsX, int opticsY, float y) {
+        ModelInstance inst = thin3d.createInstance(lockModel);
+        inst.setTranslationRotationScaling(
+                BoardPlane.cellCenterX(opticsX),
+                y,
                 BoardPlane.cellCenterZ(opticsY),
                 0f,
                 0f,
