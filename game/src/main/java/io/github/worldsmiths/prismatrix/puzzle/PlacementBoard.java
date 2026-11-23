@@ -19,29 +19,45 @@ public final class PlacementBoard {
     /** Remaining count per tray channel 0..2 ({@link PieceType#ORB_1}/{@code ORB_2}/{@code ORB_3}). */
     private final int[] remainingOrbs;
 
-    private PlacementBoard(int gridSize, int mirrorBudget, boolean orbsEnabled) {
+    private PlacementBoard(int gridSize, int mirrorBudget, int[] orbCounts, boolean orbsEnabled) {
         if (gridSize < 1) {
             throw new IllegalArgumentException("gridSize must be >= 1, got " + gridSize);
         }
         if (mirrorBudget < 0) {
             throw new IllegalArgumentException("mirrorBudget must be >= 0, got " + mirrorBudget);
         }
+        if (orbCounts == null || orbCounts.length != 3) {
+            throw new IllegalArgumentException("orbCounts must be length 3");
+        }
+        for (int i = 0; i < 3; i++) {
+            if (orbCounts[i] < 0) {
+                throw new IllegalArgumentException("orbCounts must be >= 0");
+            }
+        }
         this.gridSize = gridSize;
         this.mirrorBudget = mirrorBudget;
         this.orbsEnabled = orbsEnabled;
         this.remainingMirrors = mirrorBudget;
-        this.remainingOrbs = new int[] {orbsEnabled ? 1 : 0, orbsEnabled ? 1 : 0, orbsEnabled ? 1 : 0};
+        this.remainingOrbs = new int[] {orbCounts[0], orbCounts[1], orbCounts[2]};
         this.cells = new PieceType[gridSize][gridSize];
     }
 
     /** Classic Mode 1 inventory: one of each primary orb + 4 untyped mirror slots. */
     public static PlacementBoard classic(int gridSize) {
-        return new PlacementBoard(gridSize, CLASSIC_MIRROR_BUDGET, true);
+        return new PlacementBoard(gridSize, CLASSIC_MIRROR_BUDGET, new int[] {1, 1, 1}, true);
     }
 
     /** Mirrors-only inventory for Puzzle W1 budgets (orbs unused / rejected). */
     public static PlacementBoard mirrorsOnly(int gridSize, int mirrorBudget) {
-        return new PlacementBoard(gridSize, mirrorBudget, false);
+        return new PlacementBoard(gridSize, mirrorBudget, new int[] {0, 0, 0}, false);
+    }
+
+    /**
+     * Puzzle inventory: untyped mirror budget plus per-channel orb counts. Orbs are placeable (0
+     * remaining → {@link PlaceResult#OVER_BUDGET}).
+     */
+    public static PlacementBoard puzzle(int gridSize, int mirrorBudget, int[] orbCounts) {
+        return new PlacementBoard(gridSize, mirrorBudget, orbCounts, true);
     }
 
     public PlaceResult place(int x, int y, PieceType type) {

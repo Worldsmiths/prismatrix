@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
-import io.github.worldsmiths.prismatrix.puzzle.DraftBoard;
+import io.github.worldsmiths.prismatrix.puzzle.PlacementBoard;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -84,7 +84,7 @@ class SandboxReEvalBenchTest {
 
     /** 6×6 draft with a few ghosts so path∩ghost is non-trivial across ports. */
     private static GhostBoard boardWithGhosts() {
-        DraftBoard draft = new DraftBoard(BOARD_SIZE, 4);
+        PlacementBoard draft = PlacementBoard.mirrorsOnly(BOARD_SIZE, 4);
         GhostBoard ghosts = new GhostBoard(draft);
         ghosts.place(2, 1, PieceType.FORWARD);
         ghosts.place(3, 3, PieceType.BACK);

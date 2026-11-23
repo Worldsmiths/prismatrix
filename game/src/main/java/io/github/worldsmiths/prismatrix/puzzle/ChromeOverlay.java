@@ -282,10 +282,10 @@ public final class ChromeOverlay {
         font.drawString("Clues / badges:", layout.hudLeft, line);
         List<ConsistencyBadge> safeBadges =
                 badges == null ? Collections.<ConsistencyBadge>emptyList() : badges;
-        List<ClueDefinition> clues = puzzle.clues();
-        for (int i = 0; i < clues.size(); i++) {
+        List<GoalDefinition> goals = puzzle.goals();
+        for (int i = 0; i < goals.size(); i++) {
             line -= 22f;
-            ClueDefinition c = clues.get(i);
+            GoalDefinition c = goals.get(i);
             ConsistencyBadge.Kind kind = badgeKindFor(safeBadges, c.entryPort());
             drawBadgeMarker(draw2d, layout.hudLeft - 18f, line, kind);
             String badgeLabel = kind == null ? "-" : kind.name();

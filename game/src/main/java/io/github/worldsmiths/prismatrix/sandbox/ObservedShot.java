@@ -1,14 +1,14 @@
 package io.github.worldsmiths.prismatrix.sandbox;
 
 import io.github.worldsmiths.prismatrix.optics.Port;
-import io.github.worldsmiths.prismatrix.puzzle.ClueDefinition;
+import io.github.worldsmiths.prismatrix.puzzle.GoalDefinition;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /**
  * Observation seam view: entry port, nullable exit port (absorb/cycle), color mask. Seeded from
- * level clues in M3; M4 Fire appends live observations (exit may be null).
+ * level goals for legacy Ghost badges; M4 Fire appends live observations (exit may be null).
  */
 public final class ObservedShot {
 
@@ -28,13 +28,14 @@ public final class ObservedShot {
         this.colorMask = colorMask;
     }
 
-    public static List<ObservedShot> fromClues(List<ClueDefinition> clues) {
-        if (clues == null) {
-            throw new IllegalArgumentException("clues must not be null");
+    /** Bridge until T3 drops Ghost seeding; builds observations from puzzle goals. */
+    public static List<ObservedShot> fromClues(List<GoalDefinition> goals) {
+        if (goals == null) {
+            throw new IllegalArgumentException("goals must not be null");
         }
-        List<ObservedShot> shots = new ArrayList<ObservedShot>(clues.size());
-        for (ClueDefinition clue : clues) {
-            shots.add(new ObservedShot(clue.entryPort(), clue.exitPort(), clue.colorMask()));
+        List<ObservedShot> shots = new ArrayList<ObservedShot>(goals.size());
+        for (GoalDefinition goal : goals) {
+            shots.add(new ObservedShot(goal.entryPort(), goal.exitPort(), goal.colorMask()));
         }
         return Collections.unmodifiableList(shots);
     }

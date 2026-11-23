@@ -395,8 +395,8 @@ public final class BoardView {
         Map<Port, ConsistencyBadge.Kind> byEntry = badgeIndex(badges);
         Set<Port> clueExits = new HashSet<Port>();
         if (puzzle != null) {
-            for (ClueDefinition clue : puzzle.clues()) {
-                clueExits.add(clue.exitPort());
+            for (GoalDefinition goal : puzzle.goals()) {
+                clueExits.add(goal.exitPort());
             }
         }
         ConsistencyBadge.Kind activeStatus =
@@ -530,7 +530,7 @@ public final class BoardView {
         draftInstances.clear();
         ghostInstances.clear();
         beamInstances.clear();
-        beamTintBoard = puzzle == null ? null : puzzle.draft().toBoardState();
+        beamTintBoard = puzzle == null ? null : puzzle.mergedBoard();
         for (int y = 0; y < gridSize; y++) {
             for (int x = 0; x < gridSize; x++) {
                 PieceType draft = puzzle.pieceAt(x, y);

@@ -81,6 +81,21 @@ class PlacementBoardTest {
     }
 
     @Test
+    void puzzleFactorySpendsConfiguredOrbAndMirrorBudgets() {
+        PlacementBoard board = PlacementBoard.puzzle(6, 2, new int[] {1, 0, 2});
+
+        assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_1));
+        assertEquals(PlaceResult.OK, board.place(1, 0, PieceType.ORB_3));
+        assertEquals(PlaceResult.OK, board.place(2, 0, PieceType.FORWARD));
+        assertEquals(0, board.remainingOrb(PieceType.ORB_1));
+        assertEquals(0, board.remainingOrb(PieceType.ORB_2));
+        assertEquals(1, board.remainingOrb(PieceType.ORB_3));
+        assertEquals(1, board.remainingMirrors());
+        assertEquals(PlaceResult.OVER_BUDGET, board.place(3, 0, PieceType.ORB_1));
+        assertFalse(board.isCompleteClassic());
+    }
+
+    @Test
     void removeRestoresOrbAndMirrorInventory() {
         PlacementBoard board = PlacementBoard.classic(8);
         assertEquals(PlaceResult.OK, board.place(0, 0, PieceType.ORB_2));

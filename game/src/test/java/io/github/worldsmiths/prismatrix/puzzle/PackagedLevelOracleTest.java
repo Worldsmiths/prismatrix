@@ -43,6 +43,7 @@ class PackagedLevelOracleTest {
             files.putInternal(assetPath, levelJson);
 
             PuzzleMode mode = PuzzleMode.load(files, assetPath);
+            // Oracles are player placements only; applied after fixed seed on open.
             applyOracle(mode, fileName);
 
             assertEquals(0, mode.remaining(), "oracle must spend full budget for " + fileName);

@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * Outcome of {@link PuzzleMode#verify()}.
  *
- * <p>{@link #mismatchedEntryPorts()} is ordered by clue order in the level definition. Empty when
+ * <p>{@link #mismatchedEntryPorts()} is ordered by goal order in the level definition. Empty when
  * {@link #isOk()} or {@link #isRefused()}.
  */
 public final class VerifyResult {
@@ -24,7 +24,7 @@ public final class VerifyResult {
                 Collections.unmodifiableList(new ArrayList<Port>(mismatchedEntryPorts));
     }
 
-    /** Verify was not run because remaining budget &gt; 0 (not a FAIL path). */
+    /** Verify was not run because remaining mirrors or orbs &gt; 0 (not a FAIL path). */
     public static VerifyResult refused() {
         return new VerifyResult(false, true, Collections.<Port>emptyList());
     }
@@ -44,13 +44,13 @@ public final class VerifyResult {
         return ok;
     }
 
-    /** True when verify was refused because remaining budget &gt; 0. */
+    /** True when verify was refused because remaining mirrors or orbs &gt; 0. */
     public boolean isRefused() {
         return refused;
     }
 
     /**
-     * Entry ports whose Trace exitPort or colorMask did not match the clue. Ordered by clue order.
+     * Entry ports whose Trace exitPort or colorMask did not match the goal. Ordered by goal order.
      * Empty when {@link #isOk()} or {@link #isRefused()}.
      */
     public List<Port> mismatchedEntryPorts() {

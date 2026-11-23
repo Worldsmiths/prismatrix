@@ -2,7 +2,7 @@
   "id": "w1-03",
   "gridSize": 6,
   "mirrorBudget": 2,
-  "clues": [
+  "goals": [
     {"entryPort": "T1", "exitPort": "L1", "colorMask": 0},
     {"entryPort": "T4", "exitPort": "R4", "colorMask": 0}
   ]

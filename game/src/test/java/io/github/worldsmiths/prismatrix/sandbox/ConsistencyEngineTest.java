@@ -9,8 +9,8 @@ import io.github.worldsmiths.prismatrix.optics.Cell;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
 import io.github.worldsmiths.prismatrix.optics.TraceResult;
-import io.github.worldsmiths.prismatrix.puzzle.ClueDefinition;
-import io.github.worldsmiths.prismatrix.puzzle.DraftBoard;
+import io.github.worldsmiths.prismatrix.puzzle.GoalDefinition;
+import io.github.worldsmiths.prismatrix.puzzle.PlacementBoard;
 import io.github.worldsmiths.prismatrix.puzzle.PlaceResult;
 import java.util.Collections;
 import java.util.List;
@@ -22,7 +22,7 @@ class ConsistencyEngineTest {
     @Test
     void matchingCluePathMissingGhostsIsNeutral() {
         // Empty draft: T1 → B1 color 0. Ghost off the vertical corridor at (0,0).
-        DraftBoard draft = new DraftBoard(3, 2);
+        PlacementBoard draft = PlacementBoard.mirrorsOnly(3, 2);
         GhostBoard ghosts = new GhostBoard(draft);
         assertEquals(PlaceResult.OK, ghosts.place(0, 0, PieceType.FORWARD));
 
@@ -30,7 +30,7 @@ class ConsistencyEngineTest {
         List<ObservedShot> shots =
                 ObservedShot.fromClues(
                         Collections.singletonList(
-                                new ClueDefinition(entry, Port.of(Port.Side.B, 1, 3), 0)));
+                                new GoalDefinition(entry, Port.of(Port.Side.B, 1, 3), 0)));
 
         List<ConsistencyBadge> badges = ConsistencyEngine.evaluate(ghosts, shots);
 
@@ -41,7 +41,7 @@ class ConsistencyEngineTest {
 
     @Test
     void pathHittingMatchingGhostIsGreen() {
-        DraftBoard draft = new DraftBoard(3, 1);
+        PlacementBoard draft = PlacementBoard.mirrorsOnly(3, 1);
         GhostBoard ghosts = new GhostBoard(draft);
         assertEquals(PlaceResult.OK, ghosts.place(1, 1, PieceType.FORWARD));
 
@@ -49,7 +49,7 @@ class ConsistencyEngineTest {
         List<ObservedShot> shots =
                 ObservedShot.fromClues(
                         Collections.singletonList(
-                                new ClueDefinition(entry, Port.of(Port.Side.L, 1, 3), 0)));
+                                new GoalDefinition(entry, Port.of(Port.Side.L, 1, 3), 0)));
 
         List<ConsistencyBadge> badges = ConsistencyEngine.evaluate(ghosts, shots);
 
@@ -58,7 +58,7 @@ class ConsistencyEngineTest {
 
     @Test
     void pathHittingMismatchingGhostIsRed() {
-        DraftBoard draft = new DraftBoard(3, 1);
+        PlacementBoard draft = PlacementBoard.mirrorsOnly(3, 1);
         GhostBoard ghosts = new GhostBoard(draft);
         // `\` at (1,1): T1 → R1, but observation expects L1
         assertEquals(PlaceResult.OK, ghosts.place(1, 1, PieceType.BACK));
@@ -67,7 +67,7 @@ class ConsistencyEngineTest {
         List<ObservedShot> shots =
                 ObservedShot.fromClues(
                         Collections.singletonList(
-                                new ClueDefinition(entry, Port.of(Port.Side.L, 1, 3), 0)));
+                                new GoalDefinition(entry, Port.of(Port.Side.L, 1, 3), 0)));
 
         List<ConsistencyBadge> badges = ConsistencyEngine.evaluate(ghosts, shots);
 
@@ -76,7 +76,7 @@ class ConsistencyEngineTest {
 
     @Test
     void testFireTracesGhostBoardOnly() {
-        DraftBoard draft = new DraftBoard(3, 1);
+        PlacementBoard draft = PlacementBoard.mirrorsOnly(3, 1);
         assertEquals(PlaceResult.OK, draft.place(0, 2, PieceType.FORWARD));
         GhostBoard ghosts = new GhostBoard(draft);
         assertEquals(PlaceResult.OK, ghosts.place(1, 1, PieceType.FORWARD));
@@ -91,7 +91,7 @@ class ConsistencyEngineTest {
 
     @Test
     void nullExitObservationOffPathIsNeutralWithoutNpe() {
-        DraftBoard draft = new DraftBoard(3, 1);
+        PlacementBoard draft = PlacementBoard.mirrorsOnly(3, 1);
         GhostBoard ghosts = new GhostBoard(draft);
         assertEquals(PlaceResult.OK, ghosts.place(0, 0, PieceType.FORWARD));
 
@@ -108,7 +108,7 @@ class ConsistencyEngineTest {
     @Test
     void nullExitObservationPathHitWithRealExitIsRedWithoutNpe() {
         // Ghost `/` at (1,1): T1 → L1, but observation claims absorb (null exit).
-        DraftBoard draft = new DraftBoard(3, 1);
+        PlacementBoard draft = PlacementBoard.mirrorsOnly(3, 1);
         GhostBoard ghosts = new GhostBoard(draft);
         assertEquals(PlaceResult.OK, ghosts.place(1, 1, PieceType.FORWARD));
 

@@ -2,9 +2,13 @@ package io.github.worldsmiths.prismatrix.puzzle;
 
 import io.github.worldsmiths.core.EngineException;
 import io.github.worldsmiths.core.Files;
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
+import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Loads packaged level JSON via {@link Files#readString}. */
 public final class LevelPack {
@@ -49,26 +53,113 @@ public final class LevelPack {
         if (mirrorBudget < 0) {
             throw new LevelLoadException("mirrorBudget must be >= 0, got " + mirrorBudget);
         }
-        MinimalJson.ArrayValue cluesJson = root.requireArray("clues");
-        List<ClueDefinition> clues = new ArrayList<ClueDefinition>();
-        for (int i = 0; i < cluesJson.size(); i++) {
-            MinimalJson.ObjectValue clueObj = cluesJson.requireObject(i);
-            clues.add(parseClue(clueObj, gridSize));
+
+        int orb1 = optionalNonNegativeInt(root, "orb1");
+        int orb2 = optionalNonNegativeInt(root, "orb2");
+        int orb3 = optionalNonNegativeInt(root, "orb3");
+        OrbColorPalette.Id orbColors = parseOrbColors(root, orb1, orb2, orb3);
+
+        MinimalJson.ArrayValue goalsJson = root.requireArray("goals");
+        List<GoalDefinition> goals = new ArrayList<GoalDefinition>();
+        for (int i = 0; i < goalsJson.size(); i++) {
+            MinimalJson.ObjectValue goalObj = goalsJson.requireObject(i);
+            goals.add(parseGoal(goalObj, gridSize));
         }
-        return new LevelDefinition(id, gridSize, mirrorBudget, clues);
+
+        List<FixedPieceDefinition> fixedPieces = parseFixedPieces(root, gridSize);
+
+        return new LevelDefinition(
+                id, gridSize, mirrorBudget, orb1, orb2, orb3, orbColors, goals, fixedPieces);
     }
 
-    private static ClueDefinition parseClue(MinimalJson.ObjectValue clueObj, int gridSize)
+    private static int optionalNonNegativeInt(MinimalJson.ObjectValue root, String key)
             throws LevelLoadException {
-        String entryRaw = clueObj.requireString("entryPort");
-        if (!clueObj.has("exitPort") || clueObj.isNull("exitPort")) {
-            throw new LevelLoadException("exitPort is required (M2 exiting-only clues)");
+        if (!root.has(key) || root.isNull(key)) {
+            return 0;
         }
-        String exitRaw = clueObj.requireString("exitPort");
-        int colorMask = clueObj.requireInt("colorMask");
+        int value = root.requireInt(key);
+        if (value < 0) {
+            throw new LevelLoadException(key + " must be >= 0, got " + value);
+        }
+        return value;
+    }
+
+    private static OrbColorPalette.Id parseOrbColors(
+            MinimalJson.ObjectValue root, int orb1, int orb2, int orb3) throws LevelLoadException {
+        boolean anyOrb = orb1 > 0 || orb2 > 0 || orb3 > 0;
+        if (!anyOrb) {
+            return null;
+        }
+        if (!root.has("orbColors") || root.isNull("orbColors")) {
+            throw new LevelLoadException("orbColors is required when any orb count is > 0");
+        }
+        String raw = root.requireString("orbColors");
+        try {
+            return OrbColorPalette.Id.valueOf(raw);
+        } catch (IllegalArgumentException e) {
+            throw new LevelLoadException("Unknown orbColors: " + raw, e);
+        }
+    }
+
+    private static GoalDefinition parseGoal(MinimalJson.ObjectValue goalObj, int gridSize)
+            throws LevelLoadException {
+        String entryRaw = goalObj.requireString("entryPort");
+        if (!goalObj.has("exitPort") || goalObj.isNull("exitPort")) {
+            throw new LevelLoadException("exitPort is required");
+        }
+        String exitRaw = goalObj.requireString("exitPort");
+        int colorMask = goalObj.requireInt("colorMask");
         Port entryPort = parsePort(entryRaw, gridSize, "entryPort");
         Port exitPort = parsePort(exitRaw, gridSize, "exitPort");
-        return new ClueDefinition(entryPort, exitPort, colorMask);
+        return new GoalDefinition(entryPort, exitPort, colorMask);
+    }
+
+    private static List<FixedPieceDefinition> parseFixedPieces(
+            MinimalJson.ObjectValue root, int gridSize) throws LevelLoadException {
+        if (!root.has("fixedPieces") || root.isNull("fixedPieces")) {
+            return new ArrayList<FixedPieceDefinition>();
+        }
+        MinimalJson.ArrayValue arr = root.requireArray("fixedPieces");
+        List<FixedPieceDefinition> pieces = new ArrayList<FixedPieceDefinition>();
+        Set<Long> seen = new HashSet<Long>();
+        for (int i = 0; i < arr.size(); i++) {
+            MinimalJson.ObjectValue obj = arr.requireObject(i);
+            int x = obj.requireInt("x");
+            int y = obj.requireInt("y");
+            if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
+                throw new LevelLoadException(
+                        "fixedPieces[" + i + "] out of bounds for gridSize " + gridSize);
+            }
+            long key = (((long) x) << 32) ^ (y & 0xffffffffL);
+            if (!seen.add(Long.valueOf(key))) {
+                throw new LevelLoadException(
+                        "fixedPieces duplicate cell (" + x + "," + y + ")");
+            }
+            String typeRaw = obj.requireString("type");
+            PieceType type = parseFixedType(typeRaw, i);
+            pieces.add(new FixedPieceDefinition(x, y, type));
+        }
+        return pieces;
+    }
+
+    private static PieceType parseFixedType(String typeRaw, int index) throws LevelLoadException {
+        if ("/".equals(typeRaw)) {
+            return PieceType.FORWARD;
+        }
+        if ("\\".equals(typeRaw)) {
+            return PieceType.BACK;
+        }
+        if ("ORB_1".equals(typeRaw)) {
+            return PieceType.ORB_1;
+        }
+        if ("ORB_2".equals(typeRaw)) {
+            return PieceType.ORB_2;
+        }
+        if ("ORB_3".equals(typeRaw)) {
+            return PieceType.ORB_3;
+        }
+        throw new LevelLoadException(
+                "fixedPieces[" + index + "] invalid type: " + typeRaw);
     }
 
     private static Port parsePort(String raw, int gridSize, String field)
@@ -178,7 +269,7 @@ public final class LevelPack {
             ObjectValue requireObject(int index) throws LevelLoadException {
                 Object v = items.get(index);
                 if (!(v instanceof ObjectValue)) {
-                    throw new LevelLoadException("Expected object at clues[" + index + "]");
+                    throw new LevelLoadException("Expected object at index " + index);
                 }
                 return (ObjectValue) v;
             }

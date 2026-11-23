@@ -16,7 +16,7 @@ class PrismatrixGameTest {
                     + "\"id\":\"w1-01\","
                     + "\"gridSize\":6,"
                     + "\"mirrorBudget\":1,"
-                    + "\"clues\":["
+                    + "\"goals\":["
                     + "{\"entryPort\":\"T2\",\"exitPort\":\"L2\",\"colorMask\":0}"
                     + "]"
                     + "}";

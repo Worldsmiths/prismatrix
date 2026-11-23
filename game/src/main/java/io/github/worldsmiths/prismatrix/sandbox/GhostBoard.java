@@ -2,25 +2,25 @@ package io.github.worldsmiths.prismatrix.sandbox;
 
 import io.github.worldsmiths.prismatrix.optics.BoardState;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
-import io.github.worldsmiths.prismatrix.puzzle.DraftBoard;
 import io.github.worldsmiths.prismatrix.puzzle.PlaceResult;
+import io.github.worldsmiths.prismatrix.puzzle.PlacementBoard;
 
 /**
  * Unlimited provisional Ghost layer. Places FORWARD/BACK only on cells that are empty on the
- * referenced draft; never mutates the draft.
+ * referenced player board; never mutates the board.
  */
 public final class GhostBoard {
 
-    private final DraftBoard draft;
+    private final PlacementBoard playerBoard;
     private final int gridSize;
     private final PieceType[][] cells;
 
-    public GhostBoard(DraftBoard draft) {
-        if (draft == null) {
-            throw new IllegalArgumentException("draft must not be null");
+    public GhostBoard(PlacementBoard playerBoard) {
+        if (playerBoard == null) {
+            throw new IllegalArgumentException("playerBoard must not be null");
         }
-        this.draft = draft;
-        this.gridSize = draft.gridSize();
+        this.playerBoard = playerBoard;
+        this.gridSize = playerBoard.gridSize();
         this.cells = new PieceType[gridSize][gridSize];
     }
 
@@ -31,7 +31,7 @@ public final class GhostBoard {
         if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
             return PlaceResult.OUT_OF_BOUNDS;
         }
-        if (draft.pieceAt(x, y) != null) {
+        if (playerBoard.pieceAt(x, y) != null) {
             return PlaceResult.OCCUPIED;
         }
         if (cells[y][x] != null) {
@@ -75,7 +75,7 @@ public final class GhostBoard {
         return count;
     }
 
-    /** Snapshot of ghost pieces only (no draft pieces). Suitable for Ghost-only Trace. */
+    /** Snapshot of ghost pieces only (no player pieces). Suitable for Ghost-only Trace. */
     public BoardState toBoardState() {
         BoardState.Builder builder = BoardState.builder(gridSize);
         for (int y = 0; y < gridSize; y++) {

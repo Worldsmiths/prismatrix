@@ -50,8 +50,8 @@ public final class Presentation {
             throw new IllegalArgumentException("thin3d must not be null");
         }
         this.puzzle = puzzle;
-        this.ghosts = new GhostBoard(puzzle.draft());
-        this.observations = ObservedShot.fromClues(puzzle.clues());
+        this.ghosts = new GhostBoard(puzzle.playerBoard());
+        this.observations = ObservedShot.fromClues(puzzle.goals());
         this.boardView = new BoardView(thin3d, puzzle.gridSize());
         refreshBadges();
     }
@@ -232,13 +232,13 @@ public final class Presentation {
 
     private BoardState traceBoard() {
         if (mode == ChromeOverlay.EditMode.DRAFT) {
-            return puzzle.draft().toBoardState();
+            return puzzle.mergedBoard();
         }
         return ghosts.toBoardState();
     }
 
     private void doPromote() {
-        lastPromote = PromoteService.promote(ghosts, puzzle.draft());
+        lastPromote = PromoteService.promote(ghosts, puzzle.playerBoard());
         if (lastPromote.kind() == PromoteResult.Kind.OK) {
             lastVerify = null;
             refreshActiveTestFire();

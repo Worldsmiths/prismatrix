@@ -2,14 +2,14 @@ package io.github.worldsmiths.prismatrix.puzzle;
 
 import io.github.worldsmiths.prismatrix.optics.Port;
 
-/** Singular M2 clue: entry port, required exit port, color mask. */
-public final class ClueDefinition {
+/** Paired puzzle goal: entry port must exit at exitPort with colorMask. */
+public final class GoalDefinition {
 
     private final Port entryPort;
     private final Port exitPort;
     private final int colorMask;
 
-    public ClueDefinition(Port entryPort, Port exitPort, int colorMask) {
+    public GoalDefinition(Port entryPort, Port exitPort, int colorMask) {
         if (entryPort == null) {
             throw new IllegalArgumentException("entryPort must not be null");
         }

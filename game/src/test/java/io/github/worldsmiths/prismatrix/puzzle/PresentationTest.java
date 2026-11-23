@@ -28,7 +28,7 @@ class PresentationTest {
                         6,
                         1,
                         Collections.singletonList(
-                                new ClueDefinition(
+                                new GoalDefinition(
                                         Port.of(Port.Side.T, 2, 6),
                                         Port.of(Port.Side.L, 2, 6),
                                         0)));
