@@ -1,6 +1,6 @@
 # Prismatrix
 
-Outside-consumer Worldsmiths game (includeBuild of unpublished engine). **Playable for Puzzle World 1** on desktop: load packaged W1 levels, place `/` and `\` mirrors against an untyped budget, and Verify against Trace. Product intent lives in [`GDD.md`](GDD.md). The in-engine canary remains `samples/relay` in Worldsmiths; do not treat this tree as that canary.
+Outside-consumer Worldsmiths game (includeBuild of unpublished engine). **Playable for Puzzle World 1** on desktop: load packaged W1 levels (`goals` + `mirrorBudget`), place `/` and `\` on the live board, Test Fire ports, and Verify against Trace. Product intent lives in [`GDD.md`](GDD.md); author patterns in [`STRATEGIC_PLAYBOOK.md`](STRATEGIC_PLAYBOOK.md). The in-engine canary remains `samples/relay` in Worldsmiths; do not treat this tree as that canary.
 
 ## Play Puzzle W1
 
@@ -9,11 +9,11 @@ export WORLDSMITHS_ENGINE_ROOT=/path/to/worldsmiths   # if not ../worldsmiths
 ./gradlew :desktop:run
 ```
 
-Loads `levels/w1/01.json`. Tap the tray `/` or `\` then an empty cell to place; tap a filled cell to return a mirror; press **Enter** or **V** when remaining budget is 0 to Verify.
+Loads `levels/w1/01.json`. Tap the tray `/` or `\` then an empty cell to place; tap a filled player cell to return a mirror; tap a border port for sticky **Test Fire** on the merged board; press **Enter** or **V** when remaining mirrors (and orbs, if any) are 0 to **Verify**.
 
 ## Thin3D P1 (M3)
 
-Pitched / Ghost UX consumes Thin3D **P1** (ortho + pick-ray + emissive + TRS). CI pins a Worldsmiths SHA that includes P1 (`WORLDSMITHS_ENGINE_REF` in `.github/workflows/ci.yml`). The temporary P1 name fence used before that pin is gone; game sources may call those APIs.
+Pitched puzzle / PvP board views consume Thin3D **P1** (ortho + pick-ray + emissive + TRS). CI pins a Worldsmiths SHA that includes P1 (`WORLDSMITHS_ENGINE_REF` in `.github/workflows/ci.yml`). The temporary P1 name fence used before that pin is gone; game sources may call those APIs.
 
 ## Bar C
 
@@ -60,19 +60,9 @@ HLD soft NFR: Trace p95 &lt; 0.5 ms headless on 8×8 (mirrors/orbs; no Splitter)
 
 Tagged `@Tag("bench")` in `TraceLatencyBenchTest` for optional tag filtering; default `:game:test` stays non-flaky.
 
-## Soft sandbox re-eval bench (optional)
-
-HLD soft NFR: sandbox consistency re-eval p95 &lt; 0.2 ms for K≈20 observations (6×6 ghosts). Showcase target only — prints p50/p95/max and fails only on an extreme multi-second wall timeout (peer of Trace latency bench).
-
-```bash
-./gradlew :game:test --tests io.github.worldsmiths.prismatrix.sandbox.SandboxReEvalBenchTest
-```
-
-Tagged `@Tag("bench")` in `SandboxReEvalBenchTest`; default `:game:test` still runs it.
-
 ## Founder headed smoke checklist (manual — not CI)
 
-Run once after pitched UI lands. **Not** a CI gate; sign off outside automation.
+Canonical Mode 2 smoke (goal pads, Verify, lock mark) lives in [`STRATEGIC_PLAYBOOK.md`](STRATEGIC_PLAYBOOK.md) **Part 6 — Founder smoke checklist (manual — V8)**. Quick W1 path:
 
 ```bash
 export WORLDSMITHS_ENGINE_ROOT=/path/to/worldsmiths   # if not ../worldsmiths
@@ -80,8 +70,8 @@ export WORLDSMITHS_ENGINE_ROOT=/path/to/worldsmiths   # if not ../worldsmiths
 ```
 
 1. Confirm the board renders under pitch (38° ortho), not flat AABB.
-2. In Ghost mode, pick **one** empty cell and place a ghost mirror.
-3. Tap a port strip for **one** Test Fire — emissive beam along the ghost Trace path.
-4. (Optional) Promote / Verify chrome still responds; refuse messages if over budget.
+2. Place mirrors from the tray on empty cells; confirm goal pads (entry white / exit colored).
+3. Tap a port strip for **one** Test Fire — emissive beam on the merged board (no Ghost layer).
+4. Spend remaining mirrors, then **Enter** / **V** to Verify.
 
-Done when steps 2–3 succeed under pitch.
+Done when steps 2–4 succeed under pitch. See playbook Part 6 for the full V8 checklist including fixedPieces lock mark.

@@ -73,15 +73,21 @@ Beams enter as **Neutral White (`000` / `0`)**. Hitting an orb applies `newColor
 
 ### Mode 2: Puzzle Mode ("Optic Trials")
 
-* **Core Loop:** Single-player logic puzzles. The player is given an empty grid, a fixed inventory of pieces, and **5–14 pre-fired laser clues** pinned to the border ports. Place all pieces to satisfy every border clue simultaneously and press **Verify**.
+* **Core Loop:** Single-player construction / routing puzzles on a live board.
+  1. Load a level with paired **goals** (entry port → `{exitPort, colorMask}`), a player **inventory** (`mirrorBudget` plus optional `orb1`/`orb2`/`orb3`), and optional **fixed décor**.
+  2. Place mirrors (`/` `\`) and any orbs from the tray onto free cells; fixed pieces are already seeded, recessed with a lock mark, and cannot be moved or spent from the player budget.
+  3. **Test Fire** any border port to preview a beam on the merged board (fixed + player). Goal pads stay visible: entry ports white, exit ports tinted to the goal color.
+  4. Spend the full player inventory, then press **Verify** (Enter / V). Verify succeeds only when every goal matches a Trace on the merge; leftover mirrors or orbs refuse Verify (not a FAIL).
+* **No Ghost / badge / Promote ritual.** Puzzle does not teach provisional Ghost pieces or Green/Red/Neutral consistency badges; place on the live board and Verify explicitly.
 * **Campaign Structure (120 Levels across 5 Worlds):**
-* **World 1 — Reflection:** $6 \times 6$, Mirrors only (teaches geometry).
-* **World 2 — Refraction:** $6 \times 6$ & $8 \times 8$, Mirrors + Primary Orbs.
+* **World 1 — Reflection:** $6 \times 6$, mirrors only (teaches geometry). Packaged W1 omits orbs / `orbColors`.
+* **World 2 — Refraction:** $6 \times 6$ & $8 \times 8$, mirrors + primary orbs (`orbColors` required when any orb count &gt; 0).
 * **World 3 — Prismatics:** Full RGB additive mixing + Splitters/Absorbers.
-* **World 4 — Restricted Sensors:** Uses PvP Mutators (`Port Only` clues, `Color Only` clues).
+* **World 4 — Restricted Sensors:** Uses PvP Mutators (`Port Only` goals, `Color Only` goals).
 * **World 5 — Grandmaster Vaults:** $10 \times 10$ complex multi-splitter deduction.
 
 
+* **Level JSON (author contract):** Required `goals[{entryPort, exitPort, colorMask}]`. Optional `orb1`/`orb2`/`orb3` (default 0); when any orb &gt; 0, `orbColors` is required (`RED_YELLOW_BLUE` or `RED_GREEN_BLUE`). Optional `fixedPieces[{x,y,type}]` with types `/`, `\`, or `ORB_1`/`ORB_2`/`ORB_3` (fail-closed: in-bounds, no duplicates). Oracles (test/packaged solutions) place **player** pieces only after the fixed seed.
 * **Daily Seed:** One procedurally generated global puzzle every 24 hours with a time-based leaderboard.
 
 ### Mode 3: Incremental Mode ("Lumen Factory")
@@ -106,14 +112,15 @@ $$\text{Lumens} = (\text{Tiles} \times \text{ColorMult} \times 1.15^{\text{Bounc
 
 ---
 
-## 4. Sandbox & Consistency UI Spec (PvP & Puzzle)
+## 4. Puzzle Play UI (Mode 2)
 
-* **Ghost Layer:** Tap/drag translucent Ghost Pieces onto the Deduction Board at any time.
-* **Test Fire (Dry-Run):** Tap any border port to fire a simulated preview beam through Ghost Pieces.
-* **Live Consistency Engine:** Every historical shot log entry is continuously evaluated against the active Ghost Board:
-* **Green Badge:** Ghost board matches historical `exitPort` and `exitColor`.
-* **Red Badge:** Ghost board produces a conflicting output.
-* **Neutral Badge:** Path does not yet intersect any Ghost Pieces.
+* **Tray:** FORWARD (`/`) and BACK (`\`), plus only orb slots whose level count is &gt; 0 (tinted from the level `orbColors` palette when present).
+* **HUD:** Remaining player mirrors/orbs, compact goals list, and Verify affordance (disabled until inventory is spent).
+* **Board:** Persistent goal pads (entry white / exit colored); recessed fixed pieces with a lock mark; player pieces paint on free cells over the fixed seed.
+* **Test Fire:** Tap a border port to sticky-preview a Trace on the **merged** board (fixed + player). Does not append to any PvP observation log.
+* **Verify:** Enter / V when remaining mirrors and orbs are both 0; OK / FAIL / refused as in Mode 2 core loop.
+
+PvP Versus keeps its own Fire / Guess / history chrome; it does **not** share a Ghost-board or consistency-badge layer with Puzzle.
 
 
 
