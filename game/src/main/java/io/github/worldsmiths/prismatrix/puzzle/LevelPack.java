@@ -60,6 +60,9 @@ public final class LevelPack {
         OrbColorPalette.Id orbColors = parseOrbColors(root, orb1, orb2, orb3);
 
         MinimalJson.ArrayValue goalsJson = root.requireArray("goals");
+        if (goalsJson.size() == 0) {
+            throw new LevelLoadException("goals must not be empty");
+        }
         List<GoalDefinition> goals = new ArrayList<GoalDefinition>();
         for (int i = 0; i < goalsJson.size(); i++) {
             MinimalJson.ObjectValue goalObj = goalsJson.requireObject(i);

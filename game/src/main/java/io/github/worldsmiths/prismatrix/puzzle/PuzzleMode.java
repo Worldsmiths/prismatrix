@@ -49,7 +49,7 @@ public final class PuzzleMode {
         return level;
     }
 
-    /** Player placement board (excludes fixed seed). Used by legacy Ghost/Promote until T2. */
+    /** Player placement board (excludes fixed seed). */
     public PlacementBoard playerBoard() {
         return playerBoard;
     }
