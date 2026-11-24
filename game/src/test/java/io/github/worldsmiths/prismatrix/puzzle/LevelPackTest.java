@@ -105,6 +105,26 @@ class LevelPackTest {
     }
 
     @Test
+    void emptyGoalsArrayFailsClosed() {
+        FakeFiles files = new FakeFiles();
+        files.putInternal(
+                "levels/w1/empty-goals.json",
+                "{"
+                        + "\"id\":\"w1-bad\","
+                        + "\"gridSize\":6,"
+                        + "\"mirrorBudget\":1,"
+                        + "\"goals\":[]"
+                        + "}");
+
+        LevelLoadException ex =
+                assertThrows(
+                        LevelLoadException.class,
+                        () -> LevelPack.load(files, "levels/w1/empty-goals.json"));
+
+        assertTrue(ex.getMessage().toLowerCase().contains("goals"));
+    }
+
+    @Test
     void orbsWithoutOrbColorsFailsClosed() {
         FakeFiles files = new FakeFiles();
         files.putInternal(
