@@ -6,7 +6,7 @@ This file is an author-facing pattern library for later **puzzle levels** and **
 
 **Default board in examples:** Classic PvP / mid-campaign `8×8` (`(0,0)…(7,7)`), ports `T0..T7`, `B*`, `L*`, `R*`.  
 **Classic piece pool:** 3 orbs (R/G/B) + 4 mirrors (`/` `\`) = 7 pieces.  
-**Puzzle W1 today:** `6×6`, mirrors only, untyped `mirrorBudget` — see World tags below.
+**Puzzle W1 today:** `6×6`, mirrors only, untyped `mirrorBudget`, required `goals[]` (no orbs / no `orbColors`) — see World tags and §0.2 below.
 
 ---
 
@@ -14,11 +14,11 @@ This file is an author-facing pattern library for later **puzzle levels** and **
 
 | Goal | How to use a pattern |
 | --- | --- |
-| **Tutorial beat** | Teach **one** rule or theorem per level. Prefer patterns tagged *Teach*. Pair with 1–3 clues that isolate the idea. |
+| **Tutorial beat** | Teach **one** rule or theorem per level. Prefer patterns tagged *Teach*. Pair with 1–3 **goals** that isolate the idea. |
 | **Puzzle difficulty** | Stack *Ambiguity* patterns (Chameleon, Periscope, Staircase) and cut easy eliminations (deny free straight-throughs). |
-| **Clue design** | Author the secret board first, fire Trace for candidate ports, pin 5–14 clues that leave a unique (or intended near-unique) inventory solution. |
+| **Goal design** | Author the secret board first (player pieces + optional `fixedPieces`), fire Trace for candidate ports, pin 5–14 `goals` that leave a unique (or intended near-unique) inventory solution. |
 | **PvP setup meta** | Defensive patterns (§1) are opponent-facing; offensive patterns (§2) are solver-facing — tutorials can teach §2 in World order. |
-| **Sanity check** | Before shipping coords, re-Trace the layout. Mirror orientation mistakes flip exits (see §4 Errata). |
+| **Sanity check** | Before shipping coords, re-Trace the layout. Mirror orientation mistakes flip exits (see Part 4 Errata). |
 
 **World applicability tags**
 
@@ -27,7 +27,7 @@ This file is an author-facing pattern library for later **puzzle levels** and **
 | W1 | Reflection — `6×6`, mirrors only |
 | W2 | Refraction — mirrors + primary orbs |
 | W3 | Prismatics — full RGB + Splitter/Absorber (GDD) |
-| W4 | Restricted sensors — Port-only / Color-only clues |
+| W4 | Restricted sensors — Port-only / Color-only goals |
 | W5 | Grandmaster — `10×10`, multi-splitter |
 | PvP | Versus setup / scan meta (Classic unless noted) |
 | Chaos | Splitter / Absorber mutators (GDD; Splitter **not** in M1 `PieceType` yet) |
@@ -68,8 +68,23 @@ Source of truth for implemented Trace: `optics/TraceCore.java` + M1 HLD Appendix
 ### Mode facts used below
 
 - PvP Classic inventory: **3 orbs + 4 mirrors**.
-- Puzzle loop: empty grid + fixed inventory + border clues → place all → **Verify**.
-- Sandbox (GDD §4): Ghost pieces, Test Fire, Green/Red/Neutral consistency badges — design tutorials around this even if UI lands later.
+- Puzzle loop: live board + player inventory (+ optional fixed décor) + paired port **goals** → place all inventory → **Test Fire** on merge → **Verify** when remaining mirrors and orbs are 0.
+- Puzzle does **not** use Ghost pieces, consistency badges, or Promote. Tutorials teach ports + inventory + Verify (GDD Mode 2 / §4).
+
+### 0.2 Puzzle level JSON (author contract)
+
+Packaged under `assets/levels/`. Hard-cut schema (no dual-read of legacy `clues`):
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `goals[]` | **yes** | `{entryPort, exitPort, colorMask}` — entry white / exit tinted on the board |
+| `mirrorBudget` | yes | Player mirrors; fixed mirrors do **not** consume this |
+| `orb1` / `orb2` / `orb3` | no (default 0) | Player orb counts per channel |
+| `orbColors` | when any orb &gt; 0 | `RED_YELLOW_BLUE` or `RED_GREEN_BLUE` |
+| `fixedPieces[]` | no | `{x,y,type}` with `/`, `\`, or `ORB_1`/`ORB_2`/`ORB_3`; fail-closed |
+| Oracles | test/packaged | Player placements only; applied **after** fixed seed |
+
+W1 packaged levels ship mirrors-only `goals` (orbs omitted). Schema / tray / Verify already accept orb levels when authored.
 
 ---
 
@@ -95,7 +110,7 @@ Source of truth for implemented Trace: `optics/TraceCore.java` + M1 HLD Appendix
 
 **Why it works:** Exit **Prismatic (`7`)** proves all three primaries were touched, but a long zig-zag yields many valid orb permutations along the route.
 
-**Author note:** Prefer as a *late* campaign clue, not a first Prismatic teach — too many degrees of freedom unless other clues pin geometry.
+**Author note:** Prefer as a *late* campaign goal, not a first Prismatic teach — too many degrees of freedom unless other goals pin geometry.
 
 ---
 
@@ -190,9 +205,9 @@ Source of truth for implemented Trace: `optics/TraceCore.java` + M1 HLD Appendix
 
 **Trace:** `T0 → B4`, Neutral, **4 bounces** (uses full Classic mirror count).
 
-**Why it works:** Large entry→exit displacement; manual mental tracing fails without Sandbox Test Fire.
+**Why it works:** Large entry→exit displacement; manual mental tracing fails without sticky **Test Fire**.
 
-**Author note:** W1 end-of-world boss energy. Clue set should include at least one cross-axis shot so the staircase isn’t underdetermined.
+**Author note:** W1 end-of-world boss energy. Goal set should include at least one cross-axis shot so the staircase isn’t underdetermined.
 
 ---
 
@@ -202,7 +217,7 @@ Source of truth for implemented Trace: `optics/TraceCore.java` + M1 HLD Appendix
 
 **Why it works:** Fast center find creates false confidence; opponent sprays nearby empties while the real cluster sits on the rim.
 
-**Author note:** In puzzles, mirror this as a *red-herring clue*: an easy colored straight-through that is not sufficient to place the rest.
+**Author note:** In puzzles, mirror this as a *red-herring goal*: an easy colored straight-through that is not sufficient to place the rest.
 
 ---
 
@@ -210,7 +225,7 @@ Source of truth for implemented Trace: `optics/TraceCore.java` + M1 HLD Appendix
 
 **Goal:** Resolve boards in few shots (PvP often ~6–9) or with a tight clue set (Puzzle).
 
-Suggested **tutorial order:** §13 → §15 → §4/§5 → §14 → §16 → §17 → §18 → (§19 when Splitter ships).
+Suggested **tutorial order:** §13 → §15 → §4/§5 → §14 → §16 → §17 → §18 → (§19 when Splitter ships). Teach Puzzle via goals + Test Fire + Verify — not Ghost/badge ritual.
 
 ### 12. The "Checkerboard" Parity Opening — W1+ · PvP · Teach(opening)
 
@@ -237,7 +252,7 @@ Suggested **tutorial order:** §13 → §15 → §4/§5 → §14 → §16 → §
 1. **Zero mirrors** on column 3 (else the beam would exit a non-opposite port).
 2. **At least one Red contribution** on that column (orb R somewhere on the line; G/B absent on that path).
 
-**Application:** Fire a perpendicular probe. Intersections of “must contain R” lines vs cleared lines pin candidates. Full unique pin often needs one more consistent cross-shot or Sandbox Ghost check.
+**Application:** Fire a perpendicular probe. Intersections of “must contain R” lines vs cleared lines pin candidates. Full unique pin often needs one more consistent cross-shot (PvP Fire, or Puzzle **Test Fire** / extra goal).
 
 ---
 
@@ -263,19 +278,19 @@ Suggested **tutorial order:** §13 → §15 → §4/§5 → §14 → §16 → §
 
 ---
 
-### 17. The "Time-Reversal" Back-Trace — Puzzle staple · Teach(Sandbox)
+### 17. The "Time-Reversal" Back-Trace — Puzzle staple · Teach(goals)
 
 **Rule:** Mirror geometry is reversible; color accumulation is path-directional (OR still depends on which orbs were visited).
 
-**Application:** From a clue `T2 → R5 [Yellow]`, work backward from `R5` in Sandbox. Candidate 1–2 mirror joints between column `2` and row `5` form a short list; R and G must lie on that connected path.
+**Application:** From a goal `T2 → R5 [Yellow]`, work backward from `R5`. Candidate 1–2 mirror joints between column `2` and row `5` form a short list; R and G must lie on that connected path. Confirm candidates with sticky **Test Fire** on the live board.
 
 ---
 
-### 18. The "Sandbox Conflict" Binary Search — PvP · Puzzle · Teach(hypothesis)
+### 18. The "Hypothesis Split" Binary Search — PvP · Puzzle · Teach(hypothesis)
 
-**Strategy:** Place Ghost pieces until all known shots show Green. Find two Ghost layouts A/B that both fit. Fire (or, in Puzzle, prefer a clue) through a port where A and B **disagree** on `{exitPort, colorMask}`.
+**Strategy:** Keep two candidate layouts A/B that both fit known results. Fire (PvP) or **Test Fire** / prefer a packaged goal (Puzzle) through a port where A and B **disagree** on `{exitPort, colorMask}`.
 
-**Application:** One result eliminates half the remaining hypothesis space — author daily/hard puzzles so the intended solution is the unique survivor under the clue set.
+**Application:** One result eliminates half the remaining hypothesis space — author daily/hard puzzles so the intended solution is the unique survivor under the goal set. Do **not** teach Ghost/badge ritual for Mode 2.
 
 ---
 
@@ -320,7 +335,7 @@ Suggested **tutorial order:** §13 → §15 → §4/§5 → §14 → §16 → §
 | 15 | Odd-bounce theorem | Parity | W1+ |
 | 16 | Color causality | Intersection logic | W2+ |
 | 17 | Time-reversal | Puzzle method | All puzzle |
-| 18 | Sandbox binary search | Hypothesis control | PvP / hard puzzle |
+| 18 | Hypothesis split | Hypothesis control | PvP / hard puzzle |
 | 19 | Splitter fork | Chaos triangulation | W3+ / Chaos |
 | 20 | EV guess | Ranked endgame | PvP |
 
@@ -350,9 +365,28 @@ Checked with headless `TraceCore` on `8×8` (2026-11-21):
 ## Part 5 — Mini authoring checklist
 
 1. Pick **one teach target** (or one ambiguity target for hard puzzles).
-2. Choose board size + inventory from World / mutator table.
-3. Place pieces using a pattern from §1 (optional).
-4. Trace candidate ports; select clues that encode the teach target without soft-locking.
-5. Confirm uniqueness (or intentional multi-solution) via Ghost / alternate layouts (§18).
+2. Choose board size + inventory from World / mutator table (`mirrorBudget`, optional orbs + `orbColors`, optional `fixedPieces`).
+3. Place pieces using a pattern from §1 (optional); seed décor into `fixedPieces` when the teach needs locked cells.
+4. Trace candidate ports; select `goals` that encode the teach target without soft-locking.
+5. Confirm uniqueness (or intentional multi-solution) via alternate layouts + Test Fire / disagreeing ports (§18).
 6. Tag the level with pattern IDs (`U-Turn`, `§13`, …) for later tutorial cross-links.
 7. Re-Trace after any mirror orientation edit — `/` vs `\` is the most common silent break.
+
+---
+
+## Part 6 — Founder smoke checklist (manual — V8)
+
+Not a CI gate. Run after docs/UI cutover to confirm Mode 2 reads as ports + inventory + Verify.
+
+```bash
+export WORLDSMITHS_ENGINE_ROOT=/path/to/worldsmiths   # if not ../worldsmiths
+./gradlew :desktop:run
+```
+
+1. **Mirrors-only W1:** Loads `levels/w1/01.json`. Place `/` or `\` from the tray onto empty cells; tap a filled player cell to return a mirror. Remaining mirrors count down; Verify stays disabled until remaining is 0.
+2. **Goal pads:** Each packaged goal shows a persistent **entry-white** pad and an **exit-colored** pad (W1 exits stay white / mask `0`).
+3. **Test Fire:** Tap a border port — sticky beam traces the merged board (no Ghost layer).
+4. **Verify:** With budget spent, press **Enter** or **V** — OK on a correct W1 solve; leftover inventory refuses Verify.
+5. **Lock mark (when present):** On any level (or fixture) with `fixedPieces`, fixed cells render recessed with a **lock** mark and refuse place/remove; player remaining budget ignores fixed pieces.
+
+Done when steps 1–4 succeed on packaged W1; step 5 when a fixedPieces level/fixture is available to open.
