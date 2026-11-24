@@ -1,4 +1,4 @@
-package io.github.worldsmiths.prismatrix.sandbox;
+package io.github.worldsmiths.prismatrix.pvp;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;

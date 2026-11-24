@@ -4,7 +4,7 @@ import io.github.worldsmiths.prismatrix.optics.BoardState;
 import io.github.worldsmiths.prismatrix.optics.PieceType;
 import io.github.worldsmiths.prismatrix.optics.Port;
 import io.github.worldsmiths.prismatrix.puzzle.PlacementBoard;
-import io.github.worldsmiths.prismatrix.sandbox.ObservedShot;
+import io.github.worldsmiths.prismatrix.pvp.ObservedShot;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;

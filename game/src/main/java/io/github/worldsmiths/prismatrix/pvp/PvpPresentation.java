@@ -15,7 +15,7 @@ import io.github.worldsmiths.prismatrix.optics.TraceResult;
 import io.github.worldsmiths.prismatrix.puzzle.BoardView;
 import io.github.worldsmiths.prismatrix.puzzle.PlaceResult;
 import io.github.worldsmiths.prismatrix.puzzle.PlacementBoard;
-import io.github.worldsmiths.prismatrix.sandbox.ObservedShot;
+import io.github.worldsmiths.prismatrix.pvp.ObservedShot;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
