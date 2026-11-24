@@ -236,7 +236,7 @@ class PuzzleModeTest {
     }
 
     @Test
-    void playerBoardExposesPlacementBoardForLegacyGhostBridge() {
+    void playerBoardExposesPlacementBoard() {
         LevelDefinition level =
                 new LevelDefinition(
                         "t-bridge",
