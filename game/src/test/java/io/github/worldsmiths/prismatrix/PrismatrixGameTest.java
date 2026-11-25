@@ -7,7 +7,11 @@ import io.github.worldsmiths.core.FakeEngineServices;
 import io.github.worldsmiths.core.FakeInput;
 import io.github.worldsmiths.core.Key;
 import io.github.worldsmiths.core.Scene;
+import io.github.worldsmiths.core.ui.FakeUiKit;
+import io.github.worldsmiths.core.ui.UiBounds;
+import io.github.worldsmiths.prismatrix.menu.MenuHub;
 import io.github.worldsmiths.prismatrix.menu.MenuPhase;
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import org.junit.jupiter.api.Test;
 
 class PrismatrixGameTest {
@@ -24,11 +28,7 @@ class PrismatrixGameTest {
 
     @Test
     void createSceneLifecycleSetsPrismatrixTitle() {
-        FakeEngineServices services = new FakeEngineServices();
-        services.files().putInternal(PrismatrixGame.FIRST_LEVEL_PATH, MINIMAL_LEVEL);
-        services.ui().putFont(PrismatrixGame.HUD_FONT);
-        services.graphics().setSize(800, 600);
-
+        FakeEngineServices services = bootServices(false);
         PrismatrixGame game = new PrismatrixGame();
 
         Scene scene = assertDoesNotThrow(game::createScene);
@@ -42,36 +42,148 @@ class PrismatrixGameTest {
     }
 
     @Test
-    void num1EntersPuzzleLoadingFirstLevelPath() {
-        FakeEngineServices services = new FakeEngineServices();
-        services.files().putInternal(PrismatrixGame.FIRST_LEVEL_PATH, MINIMAL_LEVEL);
-        services.ui().putFont(PrismatrixGame.HUD_FONT);
-        services.graphics().setSize(800, 600);
-
+    void pointerOnHubPuzzleOpensWorldSelect() {
+        FakeEngineServices services = bootServices(false);
         PrismatrixGame game = new PrismatrixGame();
         game.create(services);
 
-        FakeInput input = services.input();
-        input.setKeyDown(Key.NUM_1, true);
-        assertDoesNotThrow(() -> game.update(0.016f));
-        assertDoesNotThrow(() -> game.render());
-        assertDoesNotThrow(game::dispose);
+        tapMenuButton(services.input(), game, MenuHub.ID_PUZZLE);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.WORLD_SELECT, game.menuPhase());
+
+        game.dispose();
     }
 
     @Test
-    void num2EntersPvpVsNovice() {
-        FakeEngineServices services = new FakeEngineServices();
-        services.ui().putFont(PrismatrixGame.HUD_FONT);
-        services.graphics().setSize(800, 600);
-
+    void pointerOnHubPvpOpensMatchSettings() {
+        FakeEngineServices services = bootServices(false);
         PrismatrixGame game = new PrismatrixGame();
         game.create(services);
 
+        tapMenuButton(services.input(), game, MenuHub.ID_PVP);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.MATCH_SETTINGS, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
+    void pointerOnHubSettingsOpensAppSettings() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+
+        tapMenuButton(services.input(), game, MenuHub.ID_SETTINGS);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.APP_SETTINGS, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
+    void focusActivateOnHubPuzzleOpensWorldSelect() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+
+        pressKey(services.input(), game, Key.ENTER);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.WORLD_SELECT, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
+    void focusTabThenSpaceOpensMatchSettings() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
         FakeInput input = services.input();
-        input.setKeyDown(Key.NUM_2, true);
-        assertDoesNotThrow(() -> game.update(0.016f));
-        assertDoesNotThrow(() -> game.render());
-        assertDoesNotThrow(game::dispose);
+
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.SPACE);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.MATCH_SETTINGS, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
+    void focusTabTwiceThenEnterOpensAppSettings() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.ENTER);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.APP_SETTINGS, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
+    void digitsOnHubOpenStubPhases() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        pressKey(input, game, Key.NUM_1);
+        assertEquals(MenuPhase.WORLD_SELECT, game.menuPhase());
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+
+        game.goToMenuPhase(MenuPhase.HUB);
+        pressKey(input, game, Key.NUM_2);
+        assertEquals(MenuPhase.MATCH_SETTINGS, game.menuPhase());
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+
+        game.goToMenuPhase(MenuPhase.HUB);
+        pressKey(input, game, Key.NUM_3);
+        assertEquals(MenuPhase.APP_SETTINGS, game.menuPhase());
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+
+        game.dispose();
+    }
+
+    @Test
+    void digitsOnStubPhasesAreNoOp() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        pressKey(input, game, Key.NUM_1);
+        pressKey(input, game, Key.NUM_2);
+        pressKey(input, game, Key.NUM_3);
+
+        assertEquals(MenuPhase.MATCH_SETTINGS, game.menuPhase());
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+
+        game.dispose();
+    }
+
+    @Test
+    void keyCDoesNotToggleMenuOrbColors() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        assertEquals(OrbColorPalette.Id.RED_YELLOW_BLUE, game.menuOrbColors());
+        pressKey(input, game, Key.C);
+        assertEquals(OrbColorPalette.Id.RED_YELLOW_BLUE, game.menuOrbColors());
+
+        game.dispose();
     }
 
     @Test
@@ -103,27 +215,20 @@ class PrismatrixGameTest {
         FakeEngineServices services = bootServices(true);
         PrismatrixGame game = new PrismatrixGame();
         game.create(services);
-        FakeInput input = services.input();
 
         game.goToMenuPhase(MenuPhase.WORLD_SELECT);
-        input.setKeyDown(Key.NUM_1, true);
-        game.update(0.016f);
-        input.setKeyDown(Key.NUM_1, false);
-        game.update(0.016f);
+        game.enterPuzzleForTest();
         assertEquals(PrismatrixGame.PlayMode.PUZZLE, game.playMode());
 
-        pressEscape(input, game);
+        pressEscape(services.input(), game);
         assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
         assertEquals(MenuPhase.HUB, game.menuPhase());
 
         game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
-        input.setKeyDown(Key.NUM_2, true);
-        game.update(0.016f);
-        input.setKeyDown(Key.NUM_2, false);
-        game.update(0.016f);
+        game.enterPvpForTest(false);
         assertEquals(PrismatrixGame.PlayMode.PVP, game.playMode());
 
-        pressEscape(input, game);
+        pressEscape(services.input(), game);
         assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
         assertEquals(MenuPhase.HUB, game.menuPhase());
 
@@ -155,13 +260,33 @@ class PrismatrixGameTest {
         }
         services.ui().putFont(PrismatrixGame.HUD_FONT);
         services.graphics().setSize(800, 600);
+        seedHubMeasures(services.uiKit());
         return services;
     }
 
-    private static void pressEscape(FakeInput input, PrismatrixGame game) {
-        input.setKeyDown(Key.ESCAPE, true);
+    private static void seedHubMeasures(FakeUiKit uiKit) {
+        uiKit.seedMeasureAdvance(MenuHub.TITLE_TEXT, 96f);
+        uiKit.seedMeasureAdvance(MenuHub.LABEL_PUZZLE, 48f);
+        uiKit.seedMeasureAdvance(MenuHub.LABEL_PVP, 32f);
+        uiKit.seedMeasureAdvance(MenuHub.LABEL_SETTINGS, 64f);
+    }
+
+    private static void tapMenuButton(FakeInput input, PrismatrixGame game, String leafId) {
+        UiBounds bounds = game.menuButtonBounds(leafId);
+        input.setPointer((int) bounds.centerX(), (int) bounds.centerY());
+        input.setJustTouched(true);
         game.update(0.016f);
-        input.setKeyDown(Key.ESCAPE, false);
+        input.setJustTouched(false);
+    }
+
+    private static void pressEscape(FakeInput input, PrismatrixGame game) {
+        pressKey(input, game, Key.ESCAPE);
+    }
+
+    private static void pressKey(FakeInput input, PrismatrixGame game, Key key) {
+        input.setKeyDown(key, true);
+        game.update(0.016f);
+        input.setKeyDown(key, false);
         game.update(0.016f);
     }
 }

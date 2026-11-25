@@ -7,6 +7,9 @@ import io.github.worldsmiths.core.Input;
 import io.github.worldsmiths.core.Key;
 import io.github.worldsmiths.core.Scene;
 import io.github.worldsmiths.core.WorldsmithsGame;
+import io.github.worldsmiths.core.ui.UiBounds;
+import io.github.worldsmiths.core.ui.UiHit;
+import io.github.worldsmiths.prismatrix.menu.MenuHub;
 import io.github.worldsmiths.prismatrix.menu.MenuPhase;
 import io.github.worldsmiths.prismatrix.menu.MenuUiController;
 import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
@@ -51,7 +54,9 @@ public final class PrismatrixGame implements WorldsmithsGame {
     private boolean twoKeyWasDown;
     private boolean threeKeyWasDown;
     private boolean escapeKeyWasDown;
-    private boolean cKeyWasDown;
+    private boolean tabKeyWasDown;
+    private boolean enterKeyWasDown;
+    private boolean spaceKeyWasDown;
     /** Menu-selected orb palette for the next PvP match (default RYB easy). */
     private OrbColorPalette.Id menuOrbColors = OrbColorPalette.Id.RED_YELLOW_BLUE;
     /** Last AI tier chosen at {@link #enterPvp(boolean)}; false = Novice. */
@@ -71,6 +76,21 @@ public final class PrismatrixGame implements WorldsmithsGame {
 
     boolean lastPvpTactician() {
         return lastPvpTactician;
+    }
+
+    /** Package-visible so tests can hit tray centers without editing FakeUiKit. */
+    UiBounds menuButtonBounds(String leafId) {
+        return menuUi.buttonBounds(leafId);
+    }
+
+    /** Package-visible for Esc/play path tests until World Select / Match Start exist. */
+    void enterPuzzleForTest() {
+        enterPuzzle();
+    }
+
+    /** Package-visible for Esc/play path tests until Match Start exists. */
+    void enterPvpForTest(boolean tactician) {
+        enterPvp(tactician);
     }
 
     /** Package-visible for tests and menu navigation; clears kit and rebuilds phase. */
@@ -111,6 +131,10 @@ public final class PrismatrixGame implements WorldsmithsGame {
         }
         Input input = services.input();
         handleModeKeys(input);
+        if (playMode == PlayMode.MENU) {
+            handleMenuFocusKeys(input);
+            handleMenuPointer(input);
+        }
         int[] size = screenSize();
         if (playMode == PlayMode.PUZZLE && presentation != null) {
             presentation.update(input, size[0], size[1]);
@@ -156,21 +180,24 @@ public final class PrismatrixGame implements WorldsmithsGame {
         if (input == null) {
             return;
         }
+        boolean hubAccelerators =
+                playMode == PlayMode.MENU && menuPhase == MenuPhase.HUB;
+
         boolean one = input.isKeyDown(Key.NUM_1);
-        if (one && !oneKeyWasDown && playMode == PlayMode.MENU) {
-            enterPuzzle();
+        if (one && !oneKeyWasDown && hubAccelerators) {
+            goToMenuPhase(MenuPhase.WORLD_SELECT);
         }
         oneKeyWasDown = one;
 
         boolean two = input.isKeyDown(Key.NUM_2);
-        if (two && !twoKeyWasDown && playMode == PlayMode.MENU) {
-            enterPvp(false);
+        if (two && !twoKeyWasDown && hubAccelerators) {
+            goToMenuPhase(MenuPhase.MATCH_SETTINGS);
         }
         twoKeyWasDown = two;
 
         boolean three = input.isKeyDown(Key.NUM_3);
-        if (three && !threeKeyWasDown && playMode == PlayMode.MENU) {
-            enterPvp(true);
+        if (three && !threeKeyWasDown && hubAccelerators) {
+            goToMenuPhase(MenuPhase.APP_SETTINGS);
         }
         threeKeyWasDown = three;
 
@@ -184,15 +211,6 @@ public final class PrismatrixGame implements WorldsmithsGame {
             }
         }
         escapeKeyWasDown = esc;
-
-        boolean c = input.isKeyDown(Key.C);
-        if (c && !cKeyWasDown && playMode == PlayMode.MENU) {
-            menuOrbColors =
-                    menuOrbColors == OrbColorPalette.Id.RED_YELLOW_BLUE
-                            ? OrbColorPalette.Id.RED_GREEN_BLUE
-                            : OrbColorPalette.Id.RED_YELLOW_BLUE;
-        }
-        cKeyWasDown = c;
     }
 
     private void enterPuzzle() {
@@ -243,24 +261,54 @@ public final class PrismatrixGame implements WorldsmithsGame {
         pvpKernel = null;
     }
 
-    private void renderMenu(int screenWidth, int screenHeight) {
-        if (font == null || services.draw2d() == null) {
+    private void handleMenuFocusKeys(Input input) {
+        if (menuUi == null) {
             return;
         }
-        services.draw2d().setOrtho2D(0f, 0f, screenWidth, screenHeight);
-        float y = screenHeight - 80f;
-        font.drawString("Prismatrix", 40f, y);
-        y -= 48f;
-        font.drawString("1 — Puzzle", 40f, y);
-        y -= 32f;
-        font.drawString("2 — PvP vs AI (Novice)", 40f, y);
-        y -= 32f;
-        font.drawString("3 — PvP vs AI (Tactician)", 40f, y);
-        y -= 32f;
-        font.drawString(
-                "C — colors: " + OrbColorPalette.of(menuOrbColors).shortLabel(), 40f, y);
-        y -= 32f;
-        font.drawString("Esc — menu", 40f, y);
+        boolean tab = input.isKeyDown(Key.TAB);
+        if (tab && !tabKeyWasDown) {
+            menuUi.focusNext();
+        }
+        tabKeyWasDown = tab;
+
+        boolean enter = input.isKeyDown(Key.ENTER);
+        boolean space = input.isKeyDown(Key.SPACE);
+        if ((enter && !enterKeyWasDown) || (space && !spaceKeyWasDown)) {
+            String id = menuUi.activateFocusedId();
+            if (id != null) {
+                dispatchMenuId(id);
+            }
+        }
+        enterKeyWasDown = enter;
+        spaceKeyWasDown = space;
+    }
+
+    private void handleMenuPointer(Input input) {
+        if (menuUi == null || !input.justTouched()) {
+            return;
+        }
+        UiHit hit = menuUi.hit(input.getX(), input.getY());
+        if (hit.activated() && hit.id() != null) {
+            dispatchMenuId(hit.id());
+        }
+    }
+
+    private void dispatchMenuId(String id) {
+        if (MenuHub.ID_PUZZLE.equals(id)) {
+            goToMenuPhase(MenuPhase.WORLD_SELECT);
+        } else if (MenuHub.ID_PVP.equals(id)) {
+            goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        } else if (MenuHub.ID_SETTINGS.equals(id)) {
+            goToMenuPhase(MenuPhase.APP_SETTINGS);
+        }
+    }
+
+    private void renderMenu(int screenWidth, int screenHeight) {
+        if (menuUi == null || font == null) {
+            return;
+        }
+        menuUi.setViewport(screenWidth, screenHeight);
+        menuUi.draw(services.draw2d(), font);
     }
 
     private int[] screenSize() {
