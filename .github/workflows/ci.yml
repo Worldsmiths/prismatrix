@@ -13,7 +13,7 @@ concurrency:
 
 env:
   # Pin: Thin3D P1 + UiKit engine-ui-slice (E1+E2)
-  WORLDSMITHS_ENGINE_REF: c15ed0e3cac019e5c3bf42c2b8ba918a92faef1f
+  WORLDSMITHS_ENGINE_REF: 8ba5735cebebb53d0cca98d19314323189650d5f
   WORLDSMITHS_ENGINE_ROOT: ${{ github.workspace }}/engine
 
 jobs:
