@@ -30,9 +30,11 @@ public final class MatchSettings {
 
     /**
      * Builds Match settings leaves into {@code kit} and returns hittable buttons. Optional swatch
-     * reflects {@code palette} glance color.
+     * reflects {@code palette} glance color. Exclusive draft tier disables the selected Novice or
+     * Tactician button ({@code draftTactician} false = Novice selected).
      */
-    public static MatchLeaves build(UiKit kit, OrbColorPalette.Id palette) {
+    public static MatchLeaves build(
+            UiKit kit, OrbColorPalette.Id palette, boolean draftTactician) {
         if (kit == null) {
             throw new NullPointerException("kit");
         }
@@ -46,6 +48,7 @@ public final class MatchSettings {
         Button novice = tray.slot(0, ID_NOVICE, LABEL_NOVICE);
         Button tactician = tray.slot(1, ID_TACTICIAN, LABEL_TACTICIAN);
         Button colorsButton = tray.slot(2, ID_COLORS, LABEL_COLORS);
+        applyExclusiveTier(novice, tactician, draftTactician);
         float[] rgba = OrbColorPalette.of(colors).channelRgba(0);
         Swatch swatch = kit.swatch(ID_SWATCH);
         swatch.color(rgba[0], rgba[1], rgba[2], rgba[3]);
@@ -56,7 +59,22 @@ public final class MatchSettings {
         return new MatchLeaves(start, novice, tactician, colorsButton);
     }
 
-    /** Match settings buttons after {@link #build(UiKit, OrbColorPalette.Id)}. */
+    /**
+     * XOR enabled state: selected draft tier is disabled, the other tier stays enabled.
+     *
+     * @param draftTactician false = Novice selected, true = Tactician selected
+     */
+    public static void applyExclusiveTier(
+            Button novice, Button tactician, boolean draftTactician) {
+        if (novice != null) {
+            novice.enabled(draftTactician);
+        }
+        if (tactician != null) {
+            tactician.enabled(!draftTactician);
+        }
+    }
+
+    /** Match settings buttons after {@link #build(UiKit, OrbColorPalette.Id, boolean)}. */
     public static final class MatchLeaves {
         public final Button start;
         public final Button novice;

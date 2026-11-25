@@ -111,7 +111,7 @@ public final class PrismatrixGame implements WorldsmithsGame {
         if (menuUi != null) {
             int[] size = screenSize();
             menuUi.setViewport(size[0], size[1]);
-            menuUi.rebuild(phase, menuOrbColors);
+            menuUi.rebuild(phase, menuOrbColors, matchDraftTactician);
         }
     }
 
@@ -320,8 +320,14 @@ public final class PrismatrixGame implements WorldsmithsGame {
             goToMenuPhase(MenuPhase.HUB);
         } else if (MatchSettings.ID_NOVICE.equals(id)) {
             matchDraftTactician = false;
+            if (menuUi != null) {
+                menuUi.applyMatchDraftTactician(false);
+            }
         } else if (MatchSettings.ID_TACTICIAN.equals(id)) {
             matchDraftTactician = true;
+            if (menuUi != null) {
+                menuUi.applyMatchDraftTactician(true);
+            }
         } else if (MatchSettings.ID_COLORS.equals(id)) {
             toggleMenuOrbColors();
         } else if (MatchSettings.ID_START.equals(id)) {
@@ -338,7 +344,9 @@ public final class PrismatrixGame implements WorldsmithsGame {
         if (menuUi != null && menuPhase == MenuPhase.MATCH_SETTINGS) {
             int[] size = screenSize();
             menuUi.setViewport(size[0], size[1]);
-            menuUi.rebuild(MenuPhase.MATCH_SETTINGS, menuOrbColors);
+            menuUi.rebuild(MenuPhase.MATCH_SETTINGS, menuOrbColors, matchDraftTactician);
+            // Keep focus on Colors so Enter/Space after rebuild does not commit Start.
+            menuUi.focusOn(MatchSettings.ID_COLORS);
         }
     }
 

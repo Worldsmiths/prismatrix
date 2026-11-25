@@ -34,16 +34,13 @@ public final class MenuUiController {
         viewportHeight = height > 0 ? height : 600;
     }
 
-    /** Clears kit and rebuilds leaves for {@code phase}. */
-    public void rebuild(MenuPhase phase) {
-        rebuild(phase, OrbColorPalette.Id.RED_YELLOW_BLUE);
-    }
-
     /**
-     * Clears kit and rebuilds leaves for {@code phase}. {@code matchPalette} feeds the optional
-     * Match settings swatch when phase is {@link MenuPhase#MATCH_SETTINGS}.
+     * Clears kit and rebuilds leaves for {@code phase}. {@code matchPalette} and {@code
+     * matchDraftTactician} feed Match settings swatch and exclusive tier leaves when phase is
+     * {@link MenuPhase#MATCH_SETTINGS}.
      */
-    public void rebuild(MenuPhase phase, OrbColorPalette.Id matchPalette) {
+    public void rebuild(
+            MenuPhase phase, OrbColorPalette.Id matchPalette, boolean matchDraftTactician) {
         if (phase == null) {
             throw new NullPointerException("phase");
         }
@@ -58,7 +55,7 @@ public final class MenuUiController {
                 rememberWorld(WorldSelect.build(kit));
                 break;
             case MATCH_SETTINGS:
-                rememberMatch(MatchSettings.build(kit, matchPalette));
+                rememberMatch(MatchSettings.build(kit, matchPalette, matchDraftTactician));
                 break;
             case APP_SETTINGS:
                 rememberSettings(AppSettings.build(kit));
@@ -86,6 +83,31 @@ public final class MenuUiController {
 
     public void focusNext() {
         kit.focusScope().focusNext();
+    }
+
+    /**
+     * Advances the focus ring until {@code id} is focused, or leaves the ring unchanged if {@code
+     * id} is absent.
+     */
+    public void focusOn(String id) {
+        if (id == null) {
+            throw new NullPointerException("id");
+        }
+        int n = buttonsById.size();
+        for (int i = 0; i < n; i++) {
+            if (id.equals(kit.focusScope().focusedId())) {
+                return;
+            }
+            kit.focusScope().focusNext();
+        }
+    }
+
+    /** Updates Match Novice/Tactician XOR enabled state without rebuilding the kit. */
+    public void applyMatchDraftTactician(boolean draftTactician) {
+        MatchSettings.applyExclusiveTier(
+                buttonsById.get(MatchSettings.ID_NOVICE),
+                buttonsById.get(MatchSettings.ID_TACTICIAN),
+                draftTactician);
     }
 
     /** Activates the focused enabled button and returns its id, or null if none. */

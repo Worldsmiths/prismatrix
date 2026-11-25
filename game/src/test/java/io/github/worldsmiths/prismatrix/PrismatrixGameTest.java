@@ -399,6 +399,54 @@ class PrismatrixGameTest {
     }
 
     @Test
+    void focusActivateMatchColorsThenEnterOrSpaceStaysInMenu() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        // Focus ring: Start → Novice → Tactician → Colors
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.ENTER);
+        assertEquals(OrbColorPalette.Id.RED_GREEN_BLUE, game.menuOrbColors());
+
+        // Rebuild must not leave focus on Start; following Enter/Space must not commit PvP.
+        pressKey(input, game, Key.ENTER);
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.MATCH_SETTINGS, game.menuPhase());
+        assertEquals(OrbColorPalette.Id.RED_YELLOW_BLUE, game.menuOrbColors());
+
+        pressKey(input, game, Key.SPACE);
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.MATCH_SETTINGS, game.menuPhase());
+        assertEquals(OrbColorPalette.Id.RED_GREEN_BLUE, game.menuOrbColors());
+
+        game.dispose();
+    }
+
+    @Test
+    void matchTacticianThenColorsThenStartKeepsTacticianDraft() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        tapMenuButton(input, game, MatchSettings.ID_TACTICIAN);
+        tapMenuButton(input, game, MatchSettings.ID_COLORS);
+        tapMenuButton(input, game, MatchSettings.ID_START);
+
+        assertEquals(PrismatrixGame.PlayMode.PVP, game.playMode());
+        assertEquals(true, game.lastPvpTactician());
+        assertEquals(OrbColorPalette.Id.RED_GREEN_BLUE, game.menuOrbColors());
+
+        game.dispose();
+    }
+
+    @Test
     void hubPointerAndFocusRecordFakeUiKitHitAndActivateIds() {
         FakeEngineServices services = bootServices(false);
         PrismatrixGame game = new PrismatrixGame();
