@@ -46,13 +46,13 @@ public final class MenuUiController {
                 rememberHub(MenuHub.build(kit));
                 break;
             case WORLD_SELECT:
-                WorldSelect.build(kit);
+                rememberWorld(WorldSelect.build(kit));
                 break;
             case MATCH_SETTINGS:
                 MatchSettings.build(kit);
                 break;
             case APP_SETTINGS:
-                AppSettings.build(kit);
+                rememberSettings(AppSettings.build(kit));
                 break;
             default:
                 throw new IllegalStateException("unknown phase: " + phase);
@@ -108,5 +108,14 @@ public final class MenuUiController {
         buttonsById.put(leaves.puzzle.id(), leaves.puzzle);
         buttonsById.put(leaves.pvp.id(), leaves.pvp);
         buttonsById.put(leaves.settings.id(), leaves.settings);
+    }
+
+    private void rememberWorld(WorldSelect.WorldLeaves leaves) {
+        buttonsById.put(leaves.world1.id(), leaves.world1);
+        buttonsById.put(leaves.back.id(), leaves.back);
+    }
+
+    private void rememberSettings(AppSettings.SettingsLeaves leaves) {
+        buttonsById.put(leaves.back.id(), leaves.back);
     }
 }

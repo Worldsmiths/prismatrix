@@ -9,8 +9,10 @@ import io.github.worldsmiths.core.Key;
 import io.github.worldsmiths.core.Scene;
 import io.github.worldsmiths.core.ui.FakeUiKit;
 import io.github.worldsmiths.core.ui.UiBounds;
+import io.github.worldsmiths.prismatrix.menu.AppSettings;
 import io.github.worldsmiths.prismatrix.menu.MenuHub;
 import io.github.worldsmiths.prismatrix.menu.MenuPhase;
+import io.github.worldsmiths.prismatrix.menu.WorldSelect;
 import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import org.junit.jupiter.api.Test;
 
@@ -187,6 +189,96 @@ class PrismatrixGameTest {
     }
 
     @Test
+    void pointerOnWorld1EntersPuzzle() {
+        FakeEngineServices services = bootServices(true);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+
+        game.goToMenuPhase(MenuPhase.WORLD_SELECT);
+        tapMenuButton(services.input(), game, WorldSelect.ID_WORLD_1);
+
+        assertEquals(PrismatrixGame.PlayMode.PUZZLE, game.playMode());
+
+        game.dispose();
+    }
+
+    @Test
+    void focusActivateOnWorld1EntersPuzzle() {
+        FakeEngineServices services = bootServices(true);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+
+        game.goToMenuPhase(MenuPhase.WORLD_SELECT);
+        pressKey(services.input(), game, Key.ENTER);
+
+        assertEquals(PrismatrixGame.PlayMode.PUZZLE, game.playMode());
+
+        game.dispose();
+    }
+
+    @Test
+    void pointerOnWorldBackReturnsToHub() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+
+        game.goToMenuPhase(MenuPhase.WORLD_SELECT);
+        tapMenuButton(services.input(), game, WorldSelect.ID_BACK);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.HUB, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
+    void focusActivateOnWorldBackReturnsToHub() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        game.goToMenuPhase(MenuPhase.WORLD_SELECT);
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.ENTER);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.HUB, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
+    void pointerOnSettingsBackReturnsToHub() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+
+        game.goToMenuPhase(MenuPhase.APP_SETTINGS);
+        tapMenuButton(services.input(), game, AppSettings.ID_BACK);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.HUB, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
+    void focusActivateOnSettingsBackReturnsToHub() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+
+        game.goToMenuPhase(MenuPhase.APP_SETTINGS);
+        pressKey(services.input(), game, Key.ENTER);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.HUB, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
     void escapeFromStubPhasesReturnsToHub() {
         FakeEngineServices services = bootServices(false);
         PrismatrixGame game = new PrismatrixGame();
@@ -269,6 +361,10 @@ class PrismatrixGameTest {
         uiKit.seedMeasureAdvance(MenuHub.LABEL_PUZZLE, 48f);
         uiKit.seedMeasureAdvance(MenuHub.LABEL_PVP, 32f);
         uiKit.seedMeasureAdvance(MenuHub.LABEL_SETTINGS, 64f);
+        uiKit.seedMeasureAdvance(WorldSelect.TITLE_TEXT, 96f);
+        uiKit.seedMeasureAdvance(WorldSelect.LABEL_WORLD_1, 56f);
+        uiKit.seedMeasureAdvance(WorldSelect.LABEL_BACK, 40f);
+        uiKit.seedMeasureAdvance(AppSettings.COMING_SOON_TEXT, 88f);
     }
 
     private static void tapMenuButton(FakeInput input, PrismatrixGame game, String leafId) {

@@ -9,9 +9,11 @@ import io.github.worldsmiths.core.Scene;
 import io.github.worldsmiths.core.WorldsmithsGame;
 import io.github.worldsmiths.core.ui.UiBounds;
 import io.github.worldsmiths.core.ui.UiHit;
+import io.github.worldsmiths.prismatrix.menu.AppSettings;
 import io.github.worldsmiths.prismatrix.menu.MenuHub;
 import io.github.worldsmiths.prismatrix.menu.MenuPhase;
 import io.github.worldsmiths.prismatrix.menu.MenuUiController;
+import io.github.worldsmiths.prismatrix.menu.WorldSelect;
 import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import io.github.worldsmiths.prismatrix.puzzle.LevelLoadException;
 import io.github.worldsmiths.prismatrix.puzzle.Presentation;
@@ -130,15 +132,21 @@ public final class PrismatrixGame implements WorldsmithsGame {
             return;
         }
         Input input = services.input();
+        PlayMode modeAtFrameStart = playMode;
         handleModeKeys(input);
         if (playMode == PlayMode.MENU) {
             handleMenuFocusKeys(input);
             handleMenuPointer(input);
         }
         int[] size = screenSize();
-        if (playMode == PlayMode.PUZZLE && presentation != null) {
+        // Skip play update on the entry frame so the menu tap does not hit the board.
+        if (modeAtFrameStart == PlayMode.PUZZLE
+                && playMode == PlayMode.PUZZLE
+                && presentation != null) {
             presentation.update(input, size[0], size[1]);
-        } else if (playMode == PlayMode.PVP && pvpPresentation != null) {
+        } else if (modeAtFrameStart == PlayMode.PVP
+                && playMode == PlayMode.PVP
+                && pvpPresentation != null) {
             pvpPresentation.update(input, size[0], size[1]);
         }
     }
@@ -300,6 +308,10 @@ public final class PrismatrixGame implements WorldsmithsGame {
             goToMenuPhase(MenuPhase.MATCH_SETTINGS);
         } else if (MenuHub.ID_SETTINGS.equals(id)) {
             goToMenuPhase(MenuPhase.APP_SETTINGS);
+        } else if (WorldSelect.ID_WORLD_1.equals(id)) {
+            enterPuzzle();
+        } else if (WorldSelect.ID_BACK.equals(id) || AppSettings.ID_BACK.equals(id)) {
+            goToMenuPhase(MenuPhase.HUB);
         }
     }
 
