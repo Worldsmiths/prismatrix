@@ -10,6 +10,7 @@ import io.github.worldsmiths.core.WorldsmithsGame;
 import io.github.worldsmiths.core.ui.UiBounds;
 import io.github.worldsmiths.core.ui.UiHit;
 import io.github.worldsmiths.prismatrix.menu.AppSettings;
+import io.github.worldsmiths.prismatrix.menu.MatchSettings;
 import io.github.worldsmiths.prismatrix.menu.MenuHub;
 import io.github.worldsmiths.prismatrix.menu.MenuPhase;
 import io.github.worldsmiths.prismatrix.menu.MenuUiController;
@@ -61,6 +62,8 @@ public final class PrismatrixGame implements WorldsmithsGame {
     private boolean spaceKeyWasDown;
     /** Menu-selected orb palette for the next PvP match (default RYB easy). */
     private OrbColorPalette.Id menuOrbColors = OrbColorPalette.Id.RED_YELLOW_BLUE;
+    /** Draft AI tier on Match settings; false = Novice (default). Committed only on Start. */
+    private boolean matchDraftTactician;
     /** Last AI tier chosen at {@link #enterPvp(boolean)}; false = Novice. */
     private boolean lastPvpTactician;
 
@@ -102,10 +105,13 @@ public final class PrismatrixGame implements WorldsmithsGame {
         }
         menuPhase = phase;
         playMode = PlayMode.MENU;
+        if (phase == MenuPhase.MATCH_SETTINGS) {
+            matchDraftTactician = false;
+        }
         if (menuUi != null) {
             int[] size = screenSize();
             menuUi.setViewport(size[0], size[1]);
-            menuUi.rebuild(phase);
+            menuUi.rebuild(phase, menuOrbColors);
         }
     }
 
@@ -312,6 +318,27 @@ public final class PrismatrixGame implements WorldsmithsGame {
             enterPuzzle();
         } else if (WorldSelect.ID_BACK.equals(id) || AppSettings.ID_BACK.equals(id)) {
             goToMenuPhase(MenuPhase.HUB);
+        } else if (MatchSettings.ID_NOVICE.equals(id)) {
+            matchDraftTactician = false;
+        } else if (MatchSettings.ID_TACTICIAN.equals(id)) {
+            matchDraftTactician = true;
+        } else if (MatchSettings.ID_COLORS.equals(id)) {
+            toggleMenuOrbColors();
+        } else if (MatchSettings.ID_START.equals(id)) {
+            enterPvp(matchDraftTactician);
+        }
+    }
+
+    private void toggleMenuOrbColors() {
+        if (menuOrbColors == OrbColorPalette.Id.RED_YELLOW_BLUE) {
+            menuOrbColors = OrbColorPalette.Id.RED_GREEN_BLUE;
+        } else {
+            menuOrbColors = OrbColorPalette.Id.RED_YELLOW_BLUE;
+        }
+        if (menuUi != null && menuPhase == MenuPhase.MATCH_SETTINGS) {
+            int[] size = screenSize();
+            menuUi.setViewport(size[0], size[1]);
+            menuUi.rebuild(MenuPhase.MATCH_SETTINGS, menuOrbColors);
         }
     }
 

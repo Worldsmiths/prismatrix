@@ -10,6 +10,7 @@ import io.github.worldsmiths.core.Scene;
 import io.github.worldsmiths.core.ui.FakeUiKit;
 import io.github.worldsmiths.core.ui.UiBounds;
 import io.github.worldsmiths.prismatrix.menu.AppSettings;
+import io.github.worldsmiths.prismatrix.menu.MatchSettings;
 import io.github.worldsmiths.prismatrix.menu.MenuHub;
 import io.github.worldsmiths.prismatrix.menu.MenuPhase;
 import io.github.worldsmiths.prismatrix.menu.WorldSelect;
@@ -249,6 +250,95 @@ class PrismatrixGameTest {
     }
 
     @Test
+    void matchTierAndColorsWithoutStartStayInMenu() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        tapMenuButton(input, game, MatchSettings.ID_TACTICIAN);
+        tapMenuButton(input, game, MatchSettings.ID_COLORS);
+        tapMenuButton(input, game, MatchSettings.ID_NOVICE);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.MATCH_SETTINGS, game.menuPhase());
+        assertEquals(OrbColorPalette.Id.RED_GREEN_BLUE, game.menuOrbColors());
+
+        game.dispose();
+    }
+
+    @Test
+    void matchStartAfterNoviceEntersPvpNovice() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        tapMenuButton(input, game, MatchSettings.ID_NOVICE);
+        tapMenuButton(input, game, MatchSettings.ID_START);
+
+        assertEquals(PrismatrixGame.PlayMode.PVP, game.playMode());
+        assertEquals(false, game.lastPvpTactician());
+        assertEquals(OrbColorPalette.Id.RED_YELLOW_BLUE, game.menuOrbColors());
+
+        game.dispose();
+    }
+
+    @Test
+    void matchStartAfterTacticianEntersPvpTactician() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        tapMenuButton(input, game, MatchSettings.ID_TACTICIAN);
+        tapMenuButton(input, game, MatchSettings.ID_START);
+
+        assertEquals(PrismatrixGame.PlayMode.PVP, game.playMode());
+        assertEquals(true, game.lastPvpTactician());
+
+        game.dispose();
+    }
+
+    @Test
+    void matchColorsThenStartAppliesToggledPalette() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        assertEquals(OrbColorPalette.Id.RED_YELLOW_BLUE, game.menuOrbColors());
+        tapMenuButton(input, game, MatchSettings.ID_COLORS);
+        assertEquals(OrbColorPalette.Id.RED_GREEN_BLUE, game.menuOrbColors());
+        tapMenuButton(input, game, MatchSettings.ID_START);
+
+        assertEquals(PrismatrixGame.PlayMode.PVP, game.playMode());
+        assertEquals(OrbColorPalette.Id.RED_GREEN_BLUE, game.menuOrbColors());
+        assertEquals(false, game.lastPvpTactician());
+
+        game.dispose();
+    }
+
+    @Test
+    void escapeFromMatchSettingsReturnsToHub() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        pressEscape(services.input(), game);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.HUB, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
     void pointerOnSettingsBackReturnsToHub() {
         FakeEngineServices services = bootServices(false);
         PrismatrixGame game = new PrismatrixGame();
@@ -365,6 +455,11 @@ class PrismatrixGameTest {
         uiKit.seedMeasureAdvance(WorldSelect.LABEL_WORLD_1, 56f);
         uiKit.seedMeasureAdvance(WorldSelect.LABEL_BACK, 40f);
         uiKit.seedMeasureAdvance(AppSettings.COMING_SOON_TEXT, 88f);
+        uiKit.seedMeasureAdvance(MatchSettings.TITLE_TEXT, 112f);
+        uiKit.seedMeasureAdvance(MatchSettings.LABEL_START, 40f);
+        uiKit.seedMeasureAdvance(MatchSettings.LABEL_NOVICE, 48f);
+        uiKit.seedMeasureAdvance(MatchSettings.LABEL_TACTICIAN, 72f);
+        uiKit.seedMeasureAdvance(MatchSettings.LABEL_COLORS, 48f);
     }
 
     private static void tapMenuButton(FakeInput input, PrismatrixGame game, String leafId) {

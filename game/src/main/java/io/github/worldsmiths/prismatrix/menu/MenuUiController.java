@@ -7,6 +7,7 @@ import io.github.worldsmiths.core.ui.Insets;
 import io.github.worldsmiths.core.ui.UiBounds;
 import io.github.worldsmiths.core.ui.UiHit;
 import io.github.worldsmiths.core.ui.UiKit;
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,6 +36,14 @@ public final class MenuUiController {
 
     /** Clears kit and rebuilds leaves for {@code phase}. */
     public void rebuild(MenuPhase phase) {
+        rebuild(phase, OrbColorPalette.Id.RED_YELLOW_BLUE);
+    }
+
+    /**
+     * Clears kit and rebuilds leaves for {@code phase}. {@code matchPalette} feeds the optional
+     * Match settings swatch when phase is {@link MenuPhase#MATCH_SETTINGS}.
+     */
+    public void rebuild(MenuPhase phase, OrbColorPalette.Id matchPalette) {
         if (phase == null) {
             throw new NullPointerException("phase");
         }
@@ -49,7 +58,7 @@ public final class MenuUiController {
                 rememberWorld(WorldSelect.build(kit));
                 break;
             case MATCH_SETTINGS:
-                MatchSettings.build(kit);
+                rememberMatch(MatchSettings.build(kit, matchPalette));
                 break;
             case APP_SETTINGS:
                 rememberSettings(AppSettings.build(kit));
@@ -113,6 +122,13 @@ public final class MenuUiController {
     private void rememberWorld(WorldSelect.WorldLeaves leaves) {
         buttonsById.put(leaves.world1.id(), leaves.world1);
         buttonsById.put(leaves.back.id(), leaves.back);
+    }
+
+    private void rememberMatch(MatchSettings.MatchLeaves leaves) {
+        buttonsById.put(leaves.start.id(), leaves.start);
+        buttonsById.put(leaves.novice.id(), leaves.novice);
+        buttonsById.put(leaves.tactician.id(), leaves.tactician);
+        buttonsById.put(leaves.colors.id(), leaves.colors);
     }
 
     private void rememberSettings(AppSettings.SettingsLeaves leaves) {
