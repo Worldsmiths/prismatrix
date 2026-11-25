@@ -2,6 +2,7 @@ package io.github.worldsmiths.prismatrix;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.worldsmiths.core.FakeEngineServices;
 import io.github.worldsmiths.core.FakeInput;
@@ -15,6 +16,7 @@ import io.github.worldsmiths.prismatrix.menu.MenuHub;
 import io.github.worldsmiths.prismatrix.menu.MenuPhase;
 import io.github.worldsmiths.prismatrix.menu.WorldSelect;
 import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class PrismatrixGameTest {
@@ -339,6 +341,101 @@ class PrismatrixGameTest {
     }
 
     @Test
+    void focusActivateOnMatchStartEntersPvpNovice() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        pressKey(services.input(), game, Key.ENTER);
+
+        assertEquals(PrismatrixGame.PlayMode.PVP, game.playMode());
+        assertEquals(false, game.lastPvpTactician());
+        assertEquals(OrbColorPalette.Id.RED_YELLOW_BLUE, game.menuOrbColors());
+
+        game.dispose();
+    }
+
+    @Test
+    void focusActivateMatchTacticianThenStartEntersPvpTactician() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        // Focus ring: Start → Novice → Tactician → Colors
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.ENTER);
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.ENTER);
+
+        assertEquals(PrismatrixGame.PlayMode.PVP, game.playMode());
+        assertEquals(true, game.lastPvpTactician());
+
+        game.dispose();
+    }
+
+    @Test
+    void focusActivateMatchColorsTogglesPaletteWithoutLeavingMenu() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeInput input = services.input();
+
+        game.goToMenuPhase(MenuPhase.MATCH_SETTINGS);
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.TAB);
+        pressKey(input, game, Key.ENTER);
+
+        assertEquals(PrismatrixGame.PlayMode.MENU, game.playMode());
+        assertEquals(MenuPhase.MATCH_SETTINGS, game.menuPhase());
+        assertEquals(OrbColorPalette.Id.RED_GREEN_BLUE, game.menuOrbColors());
+
+        game.dispose();
+    }
+
+    @Test
+    void hubPointerAndFocusRecordFakeUiKitHitAndActivateIds() {
+        FakeEngineServices services = bootServices(false);
+        PrismatrixGame game = new PrismatrixGame();
+        game.create(services);
+        FakeUiKit uiKit = services.uiKit();
+
+        assertTrue(
+                containsCommand(uiKit.commands(), FakeUiKit.Command.Kind.CREATE, MenuHub.ID_PUZZLE),
+                "CREATE hub-puzzle");
+        assertTrue(
+                containsCommand(uiKit.commands(), FakeUiKit.Command.Kind.CREATE, MenuHub.ID_PVP),
+                "CREATE hub-pvp");
+        assertTrue(
+                containsCommand(
+                        uiKit.commands(), FakeUiKit.Command.Kind.CREATE, MenuHub.ID_SETTINGS),
+                "CREATE hub-settings");
+
+        uiKit.clearCommands();
+        tapMenuButton(services.input(), game, MenuHub.ID_PUZZLE);
+        assertTrue(
+                containsCommand(uiKit.commands(), FakeUiKit.Command.Kind.HIT, MenuHub.ID_PUZZLE),
+                "HIT hub-puzzle");
+        assertEquals(MenuPhase.WORLD_SELECT, game.menuPhase());
+
+        game.goToMenuPhase(MenuPhase.HUB);
+        uiKit.clearCommands();
+        pressKey(services.input(), game, Key.ENTER);
+        assertTrue(
+                containsCommand(
+                        uiKit.commands(), FakeUiKit.Command.Kind.ACTIVATE, MenuHub.ID_PUZZLE),
+                "ACTIVATE hub-puzzle");
+        assertEquals(MenuPhase.WORLD_SELECT, game.menuPhase());
+
+        game.dispose();
+    }
+
+    @Test
     void pointerOnSettingsBackReturnsToHub() {
         FakeEngineServices services = bootServices(false);
         PrismatrixGame game = new PrismatrixGame();
@@ -479,5 +576,15 @@ class PrismatrixGameTest {
         game.update(0.016f);
         input.setKeyDown(key, false);
         game.update(0.016f);
+    }
+
+    private static boolean containsCommand(
+            List<FakeUiKit.Command> commands, FakeUiKit.Command.Kind kind, String id) {
+        for (FakeUiKit.Command command : commands) {
+            if (command.kind == kind && id.equals(command.id)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
