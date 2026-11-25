@@ -13,7 +13,7 @@ Loads `levels/w1/01.json`. Tap the tray `/` or `\` then an empty cell to place; 
 
 ## Thin3D P1 (M3)
 
-Pitched puzzle / PvP board views consume Thin3D **P1** (ortho + pick-ray + emissive + TRS). CI pins a Worldsmiths SHA that includes P1 (`WORLDSMITHS_ENGINE_REF` in `.github/workflows/ci.yml`). The temporary P1 name fence used before that pin is gone; game sources may call those APIs.
+Pitched puzzle / PvP board views consume Thin3D **P1** (ortho + pick-ray + emissive + TRS). CI pins a Worldsmiths SHA for P1 plus UiKit **E1+E2** (`WORLDSMITHS_ENGINE_REF` in `.github/workflows/ci.yml`). The temporary P1 name fence used before that pin is gone; game sources may call those APIs.
 
 ## Bar C
 
