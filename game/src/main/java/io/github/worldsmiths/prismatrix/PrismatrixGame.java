@@ -7,10 +7,12 @@ import io.github.worldsmiths.core.Input;
 import io.github.worldsmiths.core.Key;
 import io.github.worldsmiths.core.Scene;
 import io.github.worldsmiths.core.WorldsmithsGame;
+import io.github.worldsmiths.prismatrix.menu.MenuPhase;
+import io.github.worldsmiths.prismatrix.menu.MenuUiController;
+import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import io.github.worldsmiths.prismatrix.puzzle.LevelLoadException;
 import io.github.worldsmiths.prismatrix.puzzle.Presentation;
 import io.github.worldsmiths.prismatrix.puzzle.PuzzleMode;
-import io.github.worldsmiths.prismatrix.optics.OrbColorPalette;
 import io.github.worldsmiths.prismatrix.pvp.MatchKernel;
 import io.github.worldsmiths.prismatrix.pvp.MatchRules;
 import io.github.worldsmiths.prismatrix.pvp.NoviceAiPolicy;
@@ -36,7 +38,9 @@ public final class PrismatrixGame implements WorldsmithsGame {
 
     private EngineServices services;
     private Font font;
+    private MenuUiController menuUi;
     private PlayMode playMode = PlayMode.MENU;
+    private MenuPhase menuPhase = MenuPhase.HUB;
 
     private PuzzleMode puzzle;
     private Presentation presentation;
@@ -50,6 +54,38 @@ public final class PrismatrixGame implements WorldsmithsGame {
     private boolean cKeyWasDown;
     /** Menu-selected orb palette for the next PvP match (default RYB easy). */
     private OrbColorPalette.Id menuOrbColors = OrbColorPalette.Id.RED_YELLOW_BLUE;
+    /** Last AI tier chosen at {@link #enterPvp(boolean)}; false = Novice. */
+    private boolean lastPvpTactician;
+
+    PlayMode playMode() {
+        return playMode;
+    }
+
+    MenuPhase menuPhase() {
+        return menuPhase;
+    }
+
+    OrbColorPalette.Id menuOrbColors() {
+        return menuOrbColors;
+    }
+
+    boolean lastPvpTactician() {
+        return lastPvpTactician;
+    }
+
+    /** Package-visible for tests and menu navigation; clears kit and rebuilds phase. */
+    void goToMenuPhase(MenuPhase phase) {
+        if (phase == null) {
+            throw new NullPointerException("phase");
+        }
+        menuPhase = phase;
+        playMode = PlayMode.MENU;
+        if (menuUi != null) {
+            int[] size = screenSize();
+            menuUi.setViewport(size[0], size[1]);
+            menuUi.rebuild(phase);
+        }
+    }
 
     @Override
     public Scene createScene() {
@@ -64,7 +100,8 @@ public final class PrismatrixGame implements WorldsmithsGame {
         this.services = services;
         services.graphics().setTitle("Prismatrix");
         font = services.ui().createFont(HUD_FONT);
-        playMode = PlayMode.MENU;
+        menuUi = new MenuUiController(services.uiKit());
+        goToMenuPhase(MenuPhase.HUB);
     }
 
     @Override
@@ -102,6 +139,10 @@ public final class PrismatrixGame implements WorldsmithsGame {
     @Override
     public void dispose() {
         disposeActiveMode();
+        if (menuUi != null) {
+            menuUi.clear();
+            menuUi = null;
+        }
         if (font != null) {
             font.dispose();
             font = null;
@@ -134,9 +175,13 @@ public final class PrismatrixGame implements WorldsmithsGame {
         threeKeyWasDown = three;
 
         boolean esc = input.isKeyDown(Key.ESCAPE);
-        if (esc && !escapeKeyWasDown && playMode != PlayMode.MENU) {
-            disposeActiveMode();
-            playMode = PlayMode.MENU;
+        if (esc && !escapeKeyWasDown) {
+            if (playMode != PlayMode.MENU) {
+                disposeActiveMode();
+                goToMenuPhase(MenuPhase.HUB);
+            } else if (menuPhase != MenuPhase.HUB) {
+                goToMenuPhase(MenuPhase.HUB);
+            }
         }
         escapeKeyWasDown = esc;
 
@@ -152,6 +197,7 @@ public final class PrismatrixGame implements WorldsmithsGame {
 
     private void enterPuzzle() {
         disposeActiveMode();
+        clearMenuKit();
         try {
             puzzle = PuzzleMode.load(services.files(), FIRST_LEVEL_PATH);
         } catch (LevelLoadException e) {
@@ -163,6 +209,8 @@ public final class PrismatrixGame implements WorldsmithsGame {
 
     private void enterPvp(boolean tactician) {
         disposeActiveMode();
+        clearMenuKit();
+        lastPvpTactician = tactician;
         MatchRules rules = MatchRules.builder().orbColors(menuOrbColors).build();
         pvpKernel = new MatchKernel(rules, new Random());
         pvpPresentation =
@@ -174,6 +222,12 @@ public final class PrismatrixGame implements WorldsmithsGame {
                         services.thin3d(),
                         new Random());
         playMode = PlayMode.PVP;
+    }
+
+    private void clearMenuKit() {
+        if (menuUi != null) {
+            menuUi.clear();
+        }
     }
 
     private void disposeActiveMode() {
