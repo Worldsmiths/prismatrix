@@ -12,8 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Pin to Worldsmiths Thin3D P1 (ortho + pick-ray + emissive + TRS)
-  WORLDSMITHS_ENGINE_REF: b3b56879dbe11ac960129e2589d21f02aea37bfb
+  # Pin: Thin3D P1 + UiKit engine-ui-slice (E1+E2)
+  WORLDSMITHS_ENGINE_REF: 8ba5735cebebb53d0cca98d19314323189650d5f
   WORLDSMITHS_ENGINE_ROOT: ${{ github.workspace }}/engine
 
 jobs:
